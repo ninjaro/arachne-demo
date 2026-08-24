@@ -1,6 +1,8 @@
 # Arachne Evolution — remaining frontend work
 
-Evolution is a static historical lineage viewer. Atomic work traversal, work hierarchy aggregation, explicit-relation overlays, scale-aware strength, tapered trajectories, adaptive time layout, trajectory selection/bundling, and the three-column shell are implemented.
+This mutable, non-normative queue is governed by the permanent
+[Evolution semantics](../reference/EVOLUTION_SEMANTICS.md) and
+[static viewer architecture](../architecture/STATIC_VIEWER.md).
 
 ## Projection interaction
 

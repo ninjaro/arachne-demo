@@ -1,11 +1,16 @@
-# Viewer Redesign materials
+# Viewer design materials
 
-These artifacts record the Redesign work incorporated before the repository
-split:
+The durable interface rules live in [Evolution visual design](EVOLUTION.md),
+with graph meaning defined by
+[Evolution semantics](../reference/EVOLUTION_SEMANTICS.md).
 
-- `Arachne Viewer - Redesign.dc.html` — source design document.
-- `3a-evolution.png` — Evolution reference.
-- `3b-browse.png` — Browse reference.
+These artifacts preserve the redesign source and visual references from before
+the repository split:
 
-They are presentation references only; product and graph semantics remain in
-the Arachne core repository.
+- `Arachne Viewer - Redesign.dc.html` is design-tool source material, not a
+  guaranteed standalone browser artifact.
+- `3a-evolution.png` is the portable Evolution reference image.
+- `3b-browse.png` is the portable Browse reference image.
+
+The Arachne core repository owns canonical product semantics. This repository
+owns the read-only Viewer projection and its presentation contract.

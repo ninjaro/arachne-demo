@@ -1,8 +1,9 @@
 # Arachne Demo
 
 This repository is the public React/static presentation for Arachne. It is a
-read-only consumer: schemas, ingestion, identity, graph, research, and taste
-semantics belong to [`ninjaro/arachne`](https://github.com/ninjaro/arachne),
+read-only consumer: schema, ingestion, identity, and the canonical graph,
+research, and taste models belong to
+[`ninjaro/arachne`](https://github.com/ninjaro/arachne),
 while authoritative reviewed state lives in the private
 `ninjaro/arachne-data` repository.
 
@@ -105,5 +106,5 @@ previous Pages release valid. Repository settings should disable Dependabot
 version and security-update PR creation; Renovate is the sole update writer,
 while GitHub security alerts may remain enabled.
 
-See [repository boundaries](docs/REPOSITORY_BOUNDARIES.md) and the preserved
-[Redesign materials](docs/design/README.md).
+See the [documentation index](docs/README.md) for repository boundaries,
+Evolution semantics, design references, and the remaining frontend queue.
