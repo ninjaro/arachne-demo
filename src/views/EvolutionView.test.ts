@@ -55,22 +55,25 @@ function renderEvolution() {
 }
 
 describe("Evolution view temporal and directional controls", () => {
-  it("renders independent earlier/later controls and aggregate-aware copy", () => {
+  it("renders the command bars, independent reach controls, and graph chrome", () => {
     const markup = renderEvolution();
-    expect(markup).toContain("Earlier depth");
-    expect(markup).toContain("Later depth");
+    expect(markup).toContain('class="evolution-command-bar"');
+    expect(markup).toContain('class="evolution-view-command-bar"');
+    expect(markup).toContain("Decrease earlier depth");
+    expect(markup).toContain("Decrease later depth");
     expect(markup).toContain("Expansion mode");
     expect(markup).toContain("Connected context");
-    expect(markup).toContain("Visible trajectories");
+    expect(markup).toContain("Visibility");
     expect(markup).toContain("Decrease visible trajectory limit");
     expect(markup).toContain("Increase visible trajectory limit");
-    expect(markup).toContain("eligible trajectories hidden");
+    expect(markup).toContain('class="evolution-scene-status"');
     expect(markup).toContain('class="metro-details"');
     expect(markup).toContain('tabindex="-1"');
     expect(markup).toContain("Year-only dates");
-    expect(markup).toContain("Aggregate stop + count");
-    expect(markup).toContain("How to read this view");
-    expect(markup).not.toContain("metro-work-label");
+    expect(markup).toContain("evolution-symbol-key aggregate");
+    expect(markup).toContain("Historical tag continuity");
+    expect(markup).toContain('class="metro-work-label-layer"');
+    expect(markup).toContain('class="metro-work-label-title"');
     expect(markup).not.toContain("Expansion depth");
   });
 

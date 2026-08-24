@@ -5,10 +5,11 @@ import {
   useMemo,
   useState,
 } from "react";
-import type { FocusEvent, KeyboardEvent } from "react";
+import type { CSSProperties, FocusEvent, KeyboardEvent } from "react";
 import type { EntityId } from "../lib/types";
 import type { EvolutionTag } from "../lib/evolution";
 import { humanize } from "../lib/format";
+import { metroTagColor } from "../lib/timenets";
 
 function queryRank(label: string, query: string): number {
   const normalized = label.toLocaleLowerCase();
@@ -23,6 +24,7 @@ export function TagPicker({
   label,
   placeholder,
   mode,
+  variant = "panel",
   options,
   selectedIds,
   blockedIds,
@@ -32,6 +34,7 @@ export function TagPicker({
   label: string;
   placeholder: string;
   mode: "include" | "exclude";
+  variant?: "command" | "panel";
   options: readonly EvolutionTag[];
   selectedIds: readonly EntityId[];
   blockedIds: readonly EntityId[];
@@ -108,14 +111,21 @@ export function TagPicker({
   }
 
   return (
-    <div className={`metro-tag-picker ${mode}`} onBlur={onBlur}>
-      <label htmlFor={inputId}>{label}</label>
+    <div
+      className={`metro-tag-picker evolution-tag-picker ${mode} ${variant}`}
+      onBlur={onBlur}
+    >
+      <label className="evolution-tag-picker__label" htmlFor={inputId}>{label}</label>
       <div className="metro-tag-picker-entry">
         <div className="metro-tag-chips">
           {selectedIds.map((id) => {
             const option = optionById.get(id);
             return option ? (
-              <span className="metro-tag-chip" key={id}>
+              <span
+                className="metro-tag-chip evolution-tag-token"
+                key={id}
+                style={{ "--trajectory-color": metroTagColor(id) } as CSSProperties}
+              >
                 <span>{option.label}</span>
                 <button
                   type="button"
@@ -131,7 +141,7 @@ export function TagPicker({
             id={inputId}
             type="search"
             value={query}
-            placeholder={selectedIds.length ? "Add another tag" : placeholder}
+            placeholder={placeholder}
             role="combobox"
             aria-autocomplete="list"
             aria-haspopup="listbox"

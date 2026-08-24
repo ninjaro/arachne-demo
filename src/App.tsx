@@ -39,10 +39,10 @@ import "./styles.css";
 import "./enhancements.css";
 
 const VIEWS: Array<{ name: ViewName; label: string }> = [
-  { name: "browse", label: "Browse" },
   { name: "evolution", label: "Evolution" },
-  { name: "taste", label: "Taste" },
+  { name: "browse", label: "Browse" },
   { name: "research", label: "Research" },
+  { name: "taste", label: "Taste" },
 ];
 
 const LAB_VIEWS: Array<{ name: ViewName; label: string }> = [
@@ -443,16 +443,20 @@ export default function App() {
   const imageHintProduct = catalog.databaseSha256
     ? { contentSha256: catalog.databaseSha256 }
     : { snapshotId: catalog.productSnapshotId };
+  const tagAssignmentCount = domain.works.reduce(
+    (total, work) => total + work.conceptAssignmentCount,
+    0,
+  );
 
   return (
-    <div className="app">
-      <header className="topbar">
-        <div className="brand">
+    <div className={`app app-${view}`}>
+      <aside className="navigation-rail">
+        <div className="brand" aria-label="Pinned product snapshot">
           <h1>Arachne</h1>
-          <span>
+          <span className="brand-snapshot">{catalog.productSnapshotId}</span>
+          <span className="brand-counts">
             {domain.works.length.toLocaleString()} works ·{" "}
-            {domain.agents.length.toLocaleString()} agents ·{" "}
-            {catalog.productSnapshotId}
+            {tagAssignmentCount.toLocaleString()} tags
           </span>
         </div>
 
@@ -481,59 +485,86 @@ export default function App() {
                 navigateView(name);
               }}
             >
-              {label}
+              <span>{label}</span>
+              {name === "browse" ? (
+                <span className="tab-count">{domain.works.length.toLocaleString()}</span>
+              ) : null}
               {name === "research" && (research?.summary.problems ?? 0) > 0 ? (
-                <span className="tab-count">{research?.summary.problems}</span>
+                <span className="tab-count">
+                  {research?.summary.problems.toLocaleString()}
+                </span>
+              ) : name === "taste" && Object.keys(ratings).length > 0 ? (
+                <span className="tab-count">{Object.keys(ratings).length.toLocaleString()}</span>
               ) : null}
             </a>
           ))}
-          <details className="labs-menu" open={LAB_VIEWS.some(({ name }) => name === view)}>
-            <summary className={LAB_VIEWS.some(({ name }) => name === view) ? "tab active" : "tab"}>
-              Labs
-            </summary>
-            <div>
-              {LAB_VIEWS.map(({ name, label }) => (
-                <a
-                  key={name}
-                  href={buildViewerHref(
-                    currentLocation({ view: name }),
-                    import.meta.env.BASE_URL,
-                    LOCATION_DEFAULTS,
-                  )}
-                  className={view === name ? "active" : ""}
-                  onClick={(event) => {
-                    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                    event.preventDefault();
-                    navigateView(name);
-                  }}
-                >
-                  {label}
-                </a>
-              ))}
-            </div>
-          </details>
         </nav>
 
-        <div className="rating-summary">
-          <a href={`${import.meta.env.BASE_URL}api/v1/index.json`}>API</a>
+        <div className="rail-divider" />
+        <section className="rail-section" aria-labelledby="labs-heading">
+          <h2 id="labs-heading">Labs</h2>
+          <nav className="lab-tabs" aria-label="Experimental views">
+            {LAB_VIEWS.map(({ name, label }) => (
+              <a
+                key={name}
+                href={buildViewerHref(
+                  currentLocation({ view: name }),
+                  import.meta.env.BASE_URL,
+                  LOCATION_DEFAULTS,
+                )}
+                className={view === name ? "tab active" : "tab"}
+                aria-current={view === name ? "page" : undefined}
+                onClick={(event) => {
+                  if (
+                    event.button !== 0 ||
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                  ) {
+                    return;
+                  }
+                  event.preventDefault();
+                  navigateView(name);
+                }}
+              >
+                <span>{label}</span>
+              </a>
+            ))}
+          </nav>
+        </section>
+
+        <div className="rail-spacer" />
+
+        {(research?.summary.problems ?? 0) > 0 ? (
           <a
-            href={buildViewerHref(
-              currentLocation({ view: "taste" }),
-              import.meta.env.BASE_URL,
-              LOCATION_DEFAULTS,
-            )}
+            className="research-queue-callout"
+            href={buildViewerHref(currentLocation({ view: "research" }), import.meta.env.BASE_URL, LOCATION_DEFAULTS)}
             onClick={(event) => {
               if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
               event.preventDefault();
-              navigateView("taste");
+              navigateView("research");
             }}
           >
-            Taste · {Object.keys(ratings).length.toLocaleString()}
+            <span>{research?.summary.problems.toLocaleString()} research problems</span>
+            <strong>Open research queue →</strong>
           </a>
-        </div>
-      </header>
+        ) : null}
 
-      <main className={view === "evolution" || view === "islands" ? "graph-main" : ""}>
+        <footer className="rail-footer">
+          <a href={`${import.meta.env.BASE_URL}api/v1/index.json`}>API index</a>
+        </footer>
+      </aside>
+
+      <main
+        className={
+          view === "evolution"
+            ? "app-main graph-main evolution-main"
+            : view === "islands"
+              ? "app-main graph-main islands-main"
+              : "app-main"
+        }
+      >
         {view === "browse" ? (
           <BrowseView
             domain={domain}

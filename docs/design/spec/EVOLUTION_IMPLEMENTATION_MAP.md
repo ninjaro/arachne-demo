@@ -1,58 +1,56 @@
 # Evolution implementation map
 
-This is a visual handoff only. Status describes correspondence to the primary
-Evolution image, not semantic correctness or implementation quality.
+This is the post-pass correspondence map for the primary Evolution image.
+`missing` records a pictured component that remains intentionally omitted; it
+does not create a product commitment where behavior or data is undefined.
 
-| Visible design component | Current React/module | Status | Required visual correspondence |
+| Visible design component | Current React/module | Status | Current correspondence |
 |---|---|---|---|
-| Three-column full-screen shell | [`App`](../../../src/App.tsx), `.app`, `.topbar`, `.graph-main`; `EvolutionView` `.metro-workspace` | `needs visual rewrite` | Replace the horizontal shell with fixed rail, dominant canvas, and 304px inspector composition. |
-| 200px persistent left rail | No rail component | `missing` | Add rail frame without reducing the canvas to a card. |
-| Brand, snapshot, and corpus totals | `App` `.brand` | `needs visual rewrite` | Move into the rail and use compact two-line metadata. |
-| Evolution/Browse/Research/Taste nav with counts | `App` `VIEWS`, `.view-tabs` | `needs visual rewrite` | Vertical rows, active surface, right-aligned counts. |
-| Pinned entities and seed item | [`FloatingEntityWindows`/`useEntityWindows`](../../../src/components/windows.tsx) plus local `pinnedTagIds` in `EvolutionView` | `missing` | Neither supplies the persistent mixed work/tag rail shown in the image. |
-| Saved views | No current state/component | `missing` | Reference shows two static saved-view rows; product behavior is otherwise unspecified. |
-| Research queue callout | Research count appears only in the Research tab | `missing` | Bottom rail callout with unresolved-date count. |
-| Seed command bar | [`EvolutionControls`](../../../src/components/EvolutionControls.tsx), [`TagPicker`](../../../src/components/TagPicker.tsx) | `needs visual rewrite` | Convert sticky control column into the 67px horizontal command bar. |
-| Colored removable seed tokens and “+ trajectory” | `TagPicker`, `.metro-tag-chip` | `needs visual rewrite` | Use trajectory color/tint variants and dashed add control. |
-| Earlier/Later steppers | `earlierDepth`/`laterDepth` range inputs in `EvolutionControls` | `needs visual rewrite` | Separate labelled minus/value/plus segmented controls. |
-| Filters badge and closed control | `.metro-advanced-controls` | `needs visual rewrite` | Compact closed chip; open popover is not specified by the image. |
-| Visibility shown/eligible control | Trajectory limit and hidden/protected counts in `EvolutionControls` | `needs visual rewrite` | Compact ratio chip matching `7 / 19`. |
-| Bundling on/off control | Automatic bundling in [`evolution-trajectory-projection.ts`](../../../src/lib/evolution-trajectory-projection.ts) | `missing` | Image shows a closed `Bundling on` control; off/open states are unspecified. |
-| Scene summary and chronology note | `EvolutionView` `.metro-summary`, introduction/about copy | `needs visual rewrite` | One 57px status row with counts and nonmetric-time note. |
-| Detail selector | Per-aggregate expansion actions only | `unclear` | Image shows `Detail works`; global behavior is not defined. |
-| Zoom stepper | `zoom` state and range input | `needs visual rewrite` | Segmented minus/value/plus control. |
-| Fit | No fit-to-viewport action found | `missing` | Small adjacent action. |
-| Reset view | `resetView` through `EvolutionControls` | `needs visual rewrite` | Render as quiet text action beside Fit. |
-| 1348×700 SVG canvas | `EvolutionView` `.metro-canvas`; [`buildTimeNetScene`](../../../src/lib/timenets.ts) | `exists` | Preserve the semantic pipeline; the reference itself uses clipped, not scrollable, presentation. |
-| Adaptive year axis and grid | `EvolutionView` `.metro-axis-layer`, scene years/buckets/date labels | `needs visual rewrite` | Match the 56px axis band, sparse grid, bold selected year, and light selected guide. |
-| Compressed-gap ellipsis and paired guides | Gap compression exists in layout; no glyph found | `missing` | Render the explicit ellipsis/break cue. |
-| Colored, variable-width trajectories | SVG ribbon/strength segments and trajectory projection modules | `exists` | Preserve width semantics; align palette, round caps, stubs, and density. |
-| Inline trajectory label with type/seed role | `.metro-tag-label` renders a shortened tag/bundle label | `needs visual rewrite` | Add uppercase name, concept type, and optional seed role. |
-| Open plus trajectory terminals | Direction arrows exist, but no plus terminal glyph | `missing` | Use the outlined 15px plus terminal at open ends. |
-| Work title/date/kind/credit on canvas | Work detail appears only in tooltip/inspector | `missing` | Add compact two-line annotations using the observed start/center/end anchors; collision policy is unspecified. |
-| Single-work station ring | `.metro-station-core` and center dot | `exists` | Restyle to the dark fill, colored 3.5px ring reference. |
-| Vertical multi-trajectory interchange | `.metro-interchange-ring` is circular | `needs visual rewrite` | Use dark knockout plus pale vertical capsule. |
-| Rounded aggregate station | `.metro-aggregate-ring` is circular with numeric center | `needs visual rewrite` | Use a colored rounded outline and count in the work metadata. |
-| Aggregate child expansion | `expandedHierarchyParentIds` and inspector Show/Collapse actions | `needs visual rewrite` | Keep semantic behavior; expanded visual state is not pictured. |
-| Dashed directional explicit relations | `.metro-explicit-layer`, `.metro-relation-visible`, arrow marker | `exists` | Align amber dash/arrow styling and layer above continuity. |
-| Explicit relation type label on canvas | Relation count only for grouped relations | `missing` | Add compact amber labels; the reference labels 2 of 6 paths and does not specify the selection rule. |
-| Selected work glow and year guide | Selection classes and bucket emphasis exist | `needs visual rewrite` | Match the coordinated white glow/capsule/year treatment without changing line width. |
-| Selected work label slab | Canvas work annotations are absent | `missing` | Add the low-opacity backing plate together with the selected work annotation. |
-| Bottom trajectory token strip | No persistent equivalent | `missing` | Seven color/count tokens plus dashed hidden-count token. |
-| Bottom symbol legend | `.metro-copy-legend` inside “How to read this view” | `needs visual rewrite` | Persistent second legend row with five glyph meanings. |
-| 304px pinned work inspector | `aside.metro-details` variants in [`EvolutionView`](../../../src/views/EvolutionView.tsx) | `needs visual rewrite` | Fixed shell with compact header and stacked 14px sections. |
-| Inspector collapse | `inspectorOpen` and `.metro-inspector-controls` | `needs visual rewrite` | Move the existing affordance into the inspector header; collapsed geometry remains unspecified. |
-| Inspector work ID and close | No equivalent ID/close header | `missing` | Preserve canonical ID legibility at 304px. |
-| Work title and compact metadata | Partial title/date metadata in the station inspector; fuller fields in [`WorkEntityBody`](../../../src/components/EntityWindowBody.tsx) | `needs visual rewrite` | Compose title, date, kind, country, and language into the compact inspector header. |
-| 16:10 inspector media surface | [`EntityImageCarousel`](../../../src/components/ImageCarousel.tsx) exists only in floating entity windows | `missing` | Add the fixed-aspect inspector slot; do not treat the separate floating window as visual correspondence. |
-| Interchange trajectory rows with strength/type/role | Selected-station tag groups and strength profiles | `needs visual rewrite` | Compact four-column rows with colored variable-thickness swatches. |
-| “Continuity ≠ influence” station callout | Meaning exists only in general introduction/about copy | `missing` | Add the compact semantic callout shown in the inspector. |
-| Documented relation cards | Plain explicit-relation lists in the station inspector | `needs visual rewrite` | Stack incoming/outgoing cards with type, work, and source line. |
-| Relation evidence/source line | Current `WorkRelation` model exposes endpoints/type only | `missing` | Do not invent evidence copy; the current Viewer model has no relation-linked evidence. |
-| From-here Earlier/Later actions | No station-relative traversal actions | `missing` | Two primary actions; exact traversal interaction must follow permanent semantics. |
-| Set as focus | Station selection already establishes persistent focus | `needs visual rewrite` | Expose the existing focus transition as the reference action. |
-| Work pinning | Tag pinning exists; work pinning does not | `missing` | Add only when the rail's mixed pinned-entity model exists. |
-| Nearby aggregates summary | No current equivalent | `missing` | Derive from visible hierarchy context without inventing graph facts. |
-| Hover tooltip | Local `Tooltip`, [`evolution-hover.ts`](../../../src/lib/evolution-hover.ts), interaction lookup | `exists` | Tooltip geometry is not specified by the images. |
-| Preview de-emphasis, persistent selection, keyboard focus | Interaction classes and `:focus-visible` styling in [`enhancements.css`](../../../src/enhancements.css) | `exists` | Retain non-semantic emphasis; do not alter trajectory width. |
-| Bundle collapsed/expanded presentation | Automatic bundles plus inspector expansion action | `needs visual rewrite` | Image shows only `Bundling on`; bundle-specific expanded pixels are unspecified. |
+| Three-column desktop shell | [`App`](../../../src/App.tsx), `.app`, `.metro-workspace` | `exists` | Persistent 200px rail, dominant workspace, and 304px in-shell inspector. |
+| Navigation rail | `App` `.navigation-rail` | `exists` | Dark full-height rail with brand, snapshot metadata, vertical navigation, Labs, Research callout, and API link. |
+| Brand and corpus summary | `App` `.brand` | `exists` | Snapshot ID plus live work and tag-assignment totals use the compact two-line treatment. |
+| Evolution/Browse/Research/Taste navigation | `App` `VIEWS`, `.view-tabs` | `exists` | Reference ordering, active row surface, and available live counts. |
+| Pinned entities | No persistent mixed-entity rail model | `missing` | Omitted; local tag pinning is not equivalent to the pictured work/tag section. |
+| Saved views | No current state/component | `missing` | Omitted because Saved Views behavior is undefined. |
+| Research queue callout | `App` `.research-queue-callout` | `exists` | Uses the live unresolved-problem count and existing Research navigation. |
+| Seed command bar | [`EvolutionControls`](../../../src/components/EvolutionControls.tsx) | `exists` | Horizontal 67px command row replaces the former sticky control column. |
+| Colored removable seeds and add trajectory field | [`TagPicker`](../../../src/components/TagPicker.tsx) | `exists` | Data-colored tokens and searchable dashed add field retain the existing seed behavior. |
+| Earlier/Later controls | `EvolutionControls` `.evolution-depth-stepper` | `exists` | Independent segmented steppers preserve the existing traversal depths. |
+| Filter control | `EvolutionControls` `.evolution-filter-menu` | `exists` | Compact badge/trigger with the existing exclusion, date, taste, and expansion controls in its disclosure. |
+| Visibility ratio | `EvolutionControls` `.evolution-visibility-control` | `exists` | Shows actual visible/eligible trajectory counts and retains limit stepping. |
+| Bundling control | Automatic projection in [`evolution-trajectory-projection.ts`](../../../src/lib/evolution-trajectory-projection.ts) | `missing` | Bundling remains automatic; no unsupported on/off control is shown. |
+| Scene status and chronology note | [`EvolutionSceneStatus`](../../../src/components/EvolutionChrome.tsx) | `exists` | Compact 57px row with live counts, chronological-order note, context, and real warnings. |
+| Detail selector | Per-aggregate expansion only | `unclear` | The pictured global Detail behavior remains undefined and is omitted. |
+| Zoom and reset | `EvolutionControls` `.evolution-view-command-bar__actions` | `exists` | Existing zoom and reset behavior use the compact second-row treatment. |
+| Fit action | No current fit-to-viewport action | `missing` | Omitted rather than represented by an inert behavioral control. |
+| Dominant Evolution canvas | [`EvolutionView`](../../../src/views/EvolutionView.tsx) `.metro-chart-shell`, `.metro-canvas` | `exists` | Occupies the full center region between status and legend; existing scroll/zoom remains intact. |
+| Year axis and chronological grid | `EvolutionView` `.metro-axis-layer` | `exists` | Sparse mono year labels, full plot guides, axis rule, selected year emphasis, and top-aligned SVG scene. |
+| Compressed-gap ellipsis | Existing compressed temporal layout | `missing` | Compression is present, but the reference's dedicated ellipsis glyph is not rendered. |
+| Variable-width trajectories | Existing SVG trajectory projection and strength segments | `exists` | Rounded colored paths keep semantic width independent of hover and selection. |
+| Inline trajectory labels | `EvolutionView` `.metro-tag-label` | `exists` | Uppercase-style name plus concept type, bundle role, and seed role. |
+| Open plus terminals | No endpoint glyph | `missing` | Existing direction cues remain; no endpoint behavior was inferred from the mockup. |
+| Work annotations | `EvolutionView` `.metro-work-label-layer` | `exists` | Collision-filtered title and date/kind/credit metadata use start/end anchors. |
+| Single-work station | `EvolutionView` `.metro-single-station-ring` | `exists` | Dark hollow center with a trajectory-colored 3.5px ring. |
+| Interchange | `EvolutionView` `.metro-interchange-cap` | `exists` | Atomic multi-trajectory works use the pale vertical capsule grammar. |
+| Aggregate station | `EvolutionView` `.metro-aggregate-glyph` | `exists` | Colored rounded outline; represented-work count remains in annotation/inspector data rather than the glyph. |
+| Aggregate expansion | Existing `expandedHierarchyParentIds` behavior | `exists` | Existing Show/Collapse behavior is retained; the reference depicts only the collapsed glyph. |
+| Explicit relations | `EvolutionView` `.metro-explicit-layer` | `exists` | Amber dashed directional paths remain separate from continuity and render above trajectories. |
+| Relation type labels on canvas | No label-selection rule | `missing` | Relation types remain available in the inspector without inventing which paths receive canvas labels. |
+| Selected work treatment | `EvolutionView` station selection classes and selected temporal bucket | `exists` | White station treatment, soft glow, emphasized year, and persistent inspector selection. |
+| Selected label slab | `EvolutionView` `.metro-work-label-backdrop` | `exists` | Low-opacity rounded backing appears only for the selected annotated work. |
+| Trajectory token strip | [`EvolutionLegend`](../../../src/components/EvolutionChrome.tsx) | `exists` | Persistent data-driven visible tokens, seed/selection variants, counts, and hidden count. |
+| Symbol legend | `EvolutionLegend` `.evolution-symbol-legend` | `exists` | Persistent station, interchange, aggregate, documented-relation, and width keys. |
+| Inspector shell | `EvolutionView` `.metro-details` | `exists` | Fixed 304px surface with 32px header and independently scrolling compact content. |
+| Inspector collapse, identity, and clear | `.metro-details-header` | `exists` | Existing collapse behavior moved into the header with canonical selection identity and clear action. |
+| Work title and metadata | Station inspector branch in `EvolutionView` | `exists` | Compact title, date quality, reach, membership, hierarchy, and relation data reuse existing logic. |
+| Inspector media surface | [`EntityImageCarousel`](../../../src/components/ImageCarousel.tsx) only in floating records | `missing` | No placeholder or media behavior was invented for Evolution. |
+| Interchange membership rows | Existing visible-tag and strength sections | `needs visual rewrite` | Complete data is present, but the reference's compact four-column row composition is not yet exact. |
+| Continuity ≠ influence callout | `EvolutionView` `.metro-continuity-callout` | `exists` | Shown only for a real interchange and keeps continuity distinct from causality. |
+| Documented relation cards | `EvolutionView` `.metro-relation-cards` | `exists` | Station-linked relation type and endpoints use the warm outlined card treatment. |
+| Relation evidence/source line | Current `WorkRelation` model exposes no linked evidence | `missing` | No source copy is fabricated. |
+| From-here traversal actions | No station-relative traversal action | `missing` | Existing global Earlier/Later traversal is unchanged. |
+| Set as focus | Existing persistent station selection | `exists` | Clicking a station already establishes focus; no duplicate inspector action is added. |
+| Work pinning | Tag pinning only | `missing` | Omitted because no persistent work-pin model exists. |
+| Nearby aggregates note | No current equivalent | `missing` | Omitted rather than deriving an unsupported summary. |
+| Hover, focus, and de-emphasis | [`evolution-hover.ts`](../../../src/lib/evolution-hover.ts), interaction classes, `.metro-hover-tooltip` | `exists` | Existing preview, persistent focus, keyboard focus, and semantic-width rules are retained. |
+| Bundle presentation | Existing automatic bundle projection and inspector expansion | `needs visual rewrite` | Functional bundle selection/expansion remains; the image does not define an expanded visual variant. |

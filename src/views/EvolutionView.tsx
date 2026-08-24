@@ -7,6 +7,10 @@ import type {
 } from "react";
 import { EvolutionControls } from "../components/EvolutionControls";
 import type { EvolutionTasteFilter as ControlsTasteFilter } from "../components/EvolutionControls";
+import {
+  EvolutionLegend,
+  EvolutionSceneStatus,
+} from "../components/EvolutionChrome";
 import { EntityRatingButtons } from "../components/common";
 import type { OpenHandler, RateHandler } from "../components/common";
 import {
@@ -154,6 +158,34 @@ function tagLabel(index: EvolutionIndex, id: EntityId): string {
 
 function workLabel(index: EvolutionIndex, id: EntityId): string {
   return index.domain.workById.get(id)?.label ?? id;
+}
+
+function stationAnnotation(
+  index: EvolutionIndex,
+  station: MetroStation,
+  fallbackTitle: string,
+): { title: string; metadata: string } {
+  const representedCount = aggregateStationRepresentedWorkCount(station.entry);
+  const representativeId = station.entry.hierarchyParentId ?? station.entry.workIds[0];
+  const representative = representativeId
+    ? index.domain.workById.get(representativeId)
+    : null;
+  const contributor = representative?.contributors.find(
+    (candidate) => candidate.importance === "primary",
+  ) ?? representative?.contributors[0];
+  const metadata = [
+    station.entry.temporal.displayLabel,
+    representedCount > 1
+      ? aggregateCountLabel(station.entry)
+      : representative
+        ? humanize(representative.medium)
+        : null,
+    contributor?.creditedAs ?? contributor?.label ?? null,
+  ].filter((value): value is string => Boolean(value));
+  return {
+    title: representative?.label ?? fallbackTitle,
+    metadata: metadata.join(" · "),
+  };
 }
 
 function aggregateCountLabel(station: AggregateStation): string {
@@ -1436,6 +1468,28 @@ export function EvolutionView({
     return null;
   };
   const sceneSummary = `${visible.tags.length.toLocaleString()} visible of ${trajectorySelection.eligibleCount.toLocaleString()} eligible trajectories · ${baseTrajectoryProjection.groups.length.toLocaleString()} rendered routes (${baseTrajectoryProjection.bundles.length.toLocaleString()} bundles) · ${scene.stations.length.toLocaleString()} aggregate stops · ${visible.works.length.toLocaleString()} works · ${scene.explicitRelations.length.toLocaleString()} explicit relation paths`;
+  const statusWarnings = [
+    visible.emptySeedTagIds.length
+      ? `${visible.emptySeedTagIds.length} ${visible.emptySeedTagIds.length === 1 ? "seed has" : "seeds have"} no accepted dates`
+      : null,
+    visible.safetyStatus.warning,
+  ].filter((warning): warning is string => Boolean(warning)).join(" · ");
+  const legendTrajectories = visible.tags.map((entry) => ({
+    id: entry.tag.id,
+    label: entry.tag.label,
+    color: scene.trajectoryById.get(entry.tag.id)?.color ?? "#aeb9bb",
+    count: entry.stationIds.length,
+    seed: entry.seed,
+    selected: presentation.selection?.tagIds.includes(entry.tag.id) ?? false,
+  }));
+  const inspectorIdentity = selectedTag?.tag.id
+    ?? selectedBundle?.id
+    ?? selectedStation?.entry.hierarchyParentId
+    ?? (selectedStation?.entry.workIds.length === 1
+      ? selectedStation.entry.workIds[0]
+      : selectedStation?.id)
+    ?? selectedRelation?.key
+    ?? "selection";
 
   return (
     <section
@@ -1448,134 +1502,84 @@ export function EvolutionView({
         }
       }}
     >
-      <header className="metro-introduction">
-        <div>
-          <span className="metro-eyebrow">Evolution · historical continuity</span>
-          <h2>Follow concepts through historical works.</h2>
-          <p>
-            Choose genres, styles, movements, or themes. Hover a station for its
-            works; select it for evidence and drill-down.
-          </p>
-        </div>
-        <details className="metro-about">
-          <summary>How to read this view</summary>
-          <p>
-            Color identifies a tag, line width shows assignment strength, and
-            opacity shows context depth. Equivalent non-seed trajectories may
-            share a bundle. Explicit work relations remain a separate arrow layer.
-          </p>
-          <p>
-            Earlier and Later are independent traversal budgets. Connected context
-            can change direction while consuming both. Year- and month-level dates
-            are placed within their known temporal region for layout clarity;
-            horizontal distance does not encode duration.
-          </p>
-          <div className="metro-copy-legend" aria-label="Evolution symbol legend">
-            <span><i className="station exact" /> Single-work stop</span>
-            <span><i className="station aggregate" /> Aggregate stop + count</span>
-            <span><i className="station interchange" /> Interchange station</span>
-            <span><i className="station uncertain" /> Year-only / uncertain</span>
-            <span><i className="station selected" /> Selected station</span>
-            <span><i className="trajectory strength" /> Width = tag strength</span>
-            <span><i className="trajectory bundle" /> Equivalent-tag bundle</span>
-            <span><i className="relation" /> Explicit relation</span>
-          </div>
-        </details>
-      </header>
-
-      <div className="metro-summary">
-        <span>{sceneSummary}</span>
-        <span role="status">
-          Limit {visibleTrajectoryLimit.toLocaleString()} · {trajectorySelection.hiddenCount.toLocaleString()} eligible {trajectorySelection.hiddenCount === 1 ? "trajectory" : "trajectories"} hidden
-        </span>
-        <span>{expansionMode === "directional" ? "Directional" : "Connected"} context: ← earlier {earlierDepth} · later {laterDepth} →</span>
-        {expansionMode === "connected" ? (
-          <span>{visible.contextTraversalStates.length.toLocaleString()} non-dominated context states · {visible.temporalTagStops.length.toLocaleString()} temporal tag stops</span>
-        ) : null}
-        {visible.emptySeedTagIds.length ? (
-          <span className="warning">
-            {visible.emptySeedTagIds.length} seed {visible.emptySeedTagIds.length === 1 ? "has" : "have"} no accepted dates.
-          </span>
-        ) : null}
-        {visible.safetyStatus.warning ? (
-          <span className="warning" role="status">{visible.safetyStatus.warning}</span>
-        ) : null}
-      </div>
       <span className="sr-status" aria-live="polite">{sceneSummary}</span>
 
-      <div className="metro-inspector-controls">
-        <button
-          type="button"
-          aria-controls={detailsId}
-          aria-expanded={inspectorOpen}
-          onClick={() => setInspectorOpen((current) => !current)}
-        >
-          {inspectorOpen ? "Hide inspector" : "Show inspector"}
-        </button>
-      </div>
-
       <div className={`metro-workspace${inspectorOpen ? "" : " inspector-collapsed"}`}>
-        <EvolutionControls
-          options={index.tagOptions}
-          seedTagIds={seedTagIds}
-          excludedTagIds={excludedTagIds}
-          earlierDepth={earlierDepth}
-          laterDepth={laterDepth}
-          expansionMode={expansionMode}
-          includeYearOnly={includeYearOnly}
-          includeAmbiguous={includeAmbiguous}
-          tasteFilter={tasteFilter}
-          hideDislikedTags={hideDislikedTags}
-          showInferredPreference={showInferredPreference}
-          canUseTaste={index.tagOptions.some(
-            (tag) =>
-              ratings[tag.id] === 1 ||
-              (inferredByConceptId.get(tag.id)?.score ?? 0) > 0,
-          )}
-          visibleTrajectoryLimit={visibleTrajectoryLimit}
-          hiddenTrajectoryCount={trajectorySelection.hiddenCount}
-          protectedBeyondLimitCount={trajectorySelection.protectedBeyondLimitCount}
-          zoom={zoom}
-          onAddSeed={addSeed}
-          onRemoveSeed={(id) => setSeedTagIds((current) =>
-            current.filter((item) => item !== id)
-          )}
-          onAddExclusion={addExclusion}
-          onRemoveExclusion={(id) => setExcludedTagIds((current) =>
-            current.filter((item) => item !== id)
-          )}
-          onEarlierDepthChange={setEarlierDepth}
-          onLaterDepthChange={setLaterDepth}
-          onExpansionModeChange={setExpansionMode}
-          onIncludeYearOnlyChange={setIncludeYearOnly}
-          onIncludeAmbiguousChange={setIncludeAmbiguous}
-          onTasteFilterChange={setTasteFilter}
-          onHideDislikedTagsChange={setHideDislikedTags}
-          onShowInferredPreferenceChange={setShowInferredPreference}
-          onUseTaste={useMyTaste}
-          onVisibleTrajectoryLimitChange={setVisibleTrajectoryLimit}
-          onClearTags={clearTags}
-          onResetView={resetView}
-          onZoomChange={setZoom}
-        />
-        <div className="metro-chart-shell">
-          {!seedTagIds.length ? (
-            <div className="metro-empty">
-              <h3>Choose at least one seed tag</h3>
-              <p>The selected tag trajectories and their accepted temporal stops will appear here.</p>
-            </div>
-          ) : !scene.stations.length ? (
-            <div className="metro-empty">
-              <h3>No accepted stations</h3>
-              <p>Adjust the date-quality filters or choose another seed tag.</p>
-            </div>
-          ) : (
-            <div className="metro-scroll">
+        <div className="evolution-workspace-main">
+          <EvolutionControls
+            status={(
+              <EvolutionSceneStatus
+                trajectoryCount={visible.tags.length}
+                stationCount={scene.stations.length}
+                interchangeCount={scene.stations.filter((station) => station.interchange).length}
+                aggregateCount={scene.stations.filter((station) => station.aggregate).length}
+                context={`${expansionMode === "directional" ? "Directional" : "Connected"} context · Earlier ${earlierDepth} · Later ${laterDepth}`}
+                warnings={statusWarnings || undefined}
+              />
+            )}
+            options={index.tagOptions}
+            seedTagIds={seedTagIds}
+            excludedTagIds={excludedTagIds}
+            earlierDepth={earlierDepth}
+            laterDepth={laterDepth}
+            expansionMode={expansionMode}
+            includeYearOnly={includeYearOnly}
+            includeAmbiguous={includeAmbiguous}
+            tasteFilter={tasteFilter}
+            hideDislikedTags={hideDislikedTags}
+            showInferredPreference={showInferredPreference}
+            canUseTaste={index.tagOptions.some(
+              (tag) =>
+                ratings[tag.id] === 1 ||
+                (inferredByConceptId.get(tag.id)?.score ?? 0) > 0,
+            )}
+            visibleTrajectoryLimit={visibleTrajectoryLimit}
+            visibleTrajectoryCount={trajectorySelection.visibleCount}
+            eligibleTrajectoryCount={trajectorySelection.eligibleCount}
+            hiddenTrajectoryCount={trajectorySelection.hiddenCount}
+            protectedBeyondLimitCount={trajectorySelection.protectedBeyondLimitCount}
+            zoom={zoom}
+            onAddSeed={addSeed}
+            onRemoveSeed={(id) => setSeedTagIds((current) =>
+              current.filter((item) => item !== id)
+            )}
+            onAddExclusion={addExclusion}
+            onRemoveExclusion={(id) => setExcludedTagIds((current) =>
+              current.filter((item) => item !== id)
+            )}
+            onEarlierDepthChange={setEarlierDepth}
+            onLaterDepthChange={setLaterDepth}
+            onExpansionModeChange={setExpansionMode}
+            onIncludeYearOnlyChange={setIncludeYearOnly}
+            onIncludeAmbiguousChange={setIncludeAmbiguous}
+            onTasteFilterChange={setTasteFilter}
+            onHideDislikedTagsChange={setHideDislikedTags}
+            onShowInferredPreferenceChange={setShowInferredPreference}
+            onUseTaste={useMyTaste}
+            onVisibleTrajectoryLimitChange={setVisibleTrajectoryLimit}
+            onClearTags={clearTags}
+            onResetView={resetView}
+            onZoomChange={setZoom}
+          />
+          <div className="metro-chart-shell">
+            {!seedTagIds.length ? (
+              <div className="metro-empty">
+                <h3>Choose at least one seed tag</h3>
+                <p>The selected tag trajectories and their accepted temporal stops will appear here.</p>
+              </div>
+            ) : !scene.stations.length ? (
+              <div className="metro-empty">
+                <h3>No accepted stations</h3>
+                <p>Adjust the date-quality filters or choose another seed tag.</p>
+              </div>
+            ) : (
+              <div className="metro-scroll">
               <svg
                 className="metro-canvas"
                 width={scene.width * zoom}
                 height={scene.height * zoom}
                 viewBox={`0 0 ${scene.width} ${scene.height}`}
+                preserveAspectRatio="xMinYMin meet"
                 role="group"
                 aria-labelledby={`${titleId} ${descriptionId}`}
                 onClick={() => {
@@ -1586,10 +1590,10 @@ export function EvolutionView({
                 <title id={titleId}>Tag-centered historical Evolution map</title>
                 <desc id={descriptionId}>
                   Variable-width tag trajectories and equivalent-tag bundles pass through
-                  dated single-work and aggregate sun stations. Independent earlier and later
-                  budgets add directional or connected context; uncertain dates may move only
-                  within their accepted ranges. Explicit work relations remain a separate arrow
-                  layer. Arrow keys move among items; Enter or Space creates persistent focus.
+                  dated work, interchange, and aggregate stations. Independent earlier and later
+                  budgets add directional or connected context. Horizontal order is chronological,
+                  while distance does not encode duration. Explicit work relations remain a separate
+                  arrow layer. Arrow keys move among items; Enter or Space creates persistent focus.
                 </desc>
                 <defs>
                   <marker
@@ -1606,6 +1610,14 @@ export function EvolutionView({
                 </defs>
 
                 <g className="metro-axis-layer" aria-hidden="true">
+                  <line
+                    x1={0}
+                    x2={scene.width}
+                    y1={64}
+                    y2={64}
+                    className="evolution-axis-rule"
+                    vectorEffect="non-scaling-stroke"
+                  />
                   {scene.years.map((year, index) => (
                     <g key={year.year}>
                       <rect
@@ -1624,7 +1636,7 @@ export function EvolutionView({
                         x1={year.xStart}
                         x2={year.xStart}
                         y1={53}
-                        y2={64}
+                        y2={scene.height - 28}
                         className="metro-year-tick"
                         vectorEffect="non-scaling-stroke"
                       />
@@ -1632,7 +1644,14 @@ export function EvolutionView({
                         x={(year.xStart + year.xEnd) / 2}
                         y={43}
                         textAnchor="middle"
-                        className="metro-year-label"
+                        className={[
+                          "metro-year-label",
+                          scene.bucketById.get(
+                            presentation.selection?.temporalBucket?.id ?? "",
+                          )?.temporal.year === year.year
+                            ? "selected"
+                            : "",
+                        ].filter(Boolean).join(" ")}
                       >
                         {year.year}
                       </text>
@@ -1774,7 +1793,12 @@ export function EvolutionView({
                         })}
                         <path d={group.path} className="metro-line-hit" vectorEffect="non-scaling-stroke" />
                         <text x={representative.origin.x} y={representative.laneY - 10} className="metro-tag-label">
-                          {truncatedLabel(label)}
+                          <tspan className="metro-tag-label-title">{truncatedLabel(label)}</tspan>
+                          <tspan className="metro-tag-label-meta">
+                            {group.kind === "bundle"
+                              ? " · bundle"
+                              : ` · ${humanize(entry.tag.conceptType)}${entry.seed ? " · seed" : ""}`}
+                          </tspan>
                         </text>
                         {group.kind === "bundle" ? (
                           <g className="metro-bundle-count" transform={`translate(${representative.origin.x + 7} ${representative.laneY + 4})`}>
@@ -1848,10 +1872,27 @@ export function EvolutionView({
                       workCount: aggregateStationRepresentedWorkCount(station.entry),
                     });
                     const ambiguousHalfSize = marker.dateHaloRadius / Math.SQRT2;
+                    const interchangeYValues = station.ports.flatMap((port) => [
+                      port.left.y - station.y,
+                      port.right.y - station.y,
+                    ]);
+                    const interchangeTop = Math.min(
+                      -marker.structuralRadius,
+                      ...(interchangeYValues.length ? interchangeYValues : [0]),
+                    ) - 2;
+                    const interchangeBottom = Math.max(
+                      marker.structuralRadius,
+                      ...(interchangeYValues.length ? interchangeYValues : [0]),
+                    ) + 2;
+                    const aggregateWidth = Math.max(18, marker.coreRadius * 2.5);
+                    const stationColor = station.visibleTagIds
+                      .map((tagId) => scene.trajectoryById.get(tagId)?.color)
+                      .find((color): color is string => Boolean(color)) ?? "#cfd7d6";
                     return (
                       <g
                         key={station.id}
                         transform={`translate(${station.x} ${station.y})`}
+                        style={{ "--station-color": stationColor } as CSSProperties}
                         className={[
                           "metro-station",
                           station.interchange ? "interchange" : "",
@@ -1900,8 +1941,28 @@ export function EvolutionView({
                           {station.entry.temporal.quality === "ambiguous" ? (
                             <rect x={-ambiguousHalfSize} y={-ambiguousHalfSize} width={ambiguousHalfSize * 2} height={ambiguousHalfSize * 2} className="metro-station-halo ambiguous" transform="rotate(45)" />
                           ) : null}
-                          {station.aggregate ? <circle r={marker.coreRadius} className="metro-aggregate-ring" /> : <circle r={marker.coreRadius} className="metro-station-core" />}
-                          {station.interchange ? <circle r={marker.structuralRadius} className="metro-interchange-ring" /> : null}
+                          {station.aggregate ? (
+                            <rect
+                              x={-aggregateWidth / 2}
+                              y={-5.5}
+                              width={aggregateWidth}
+                              height={11}
+                              rx={5.5}
+                              className="metro-aggregate-ring metro-aggregate-glyph"
+                            />
+                          ) : (
+                            <circle r={marker.coreRadius} className="metro-station-core metro-single-station-ring" />
+                          )}
+                          {station.interchange ? (
+                            <rect
+                              x={-4.5}
+                              y={interchangeTop}
+                              width={9}
+                              height={interchangeBottom - interchangeTop}
+                              rx={4.5}
+                              className="metro-interchange-ring metro-interchange-cap"
+                            />
+                          ) : null}
                           {station.aggregate ? (
                             <text y={2.5} className="metro-aggregate-count">{aggregateStationRepresentedWorkCount(station.entry)}</text>
                           ) : (
@@ -1913,10 +1974,70 @@ export function EvolutionView({
                   })}
                 </g>
 
+                <g className="metro-work-label-layer" aria-hidden="true">
+                  {scene.workLabels.map((label) => {
+                    const station = scene.stationById.get(label.stationId);
+                    if (!station) return null;
+                    const annotation = stationAnnotation(index, station, label.text);
+                    const anchor = label.x >= station.x ? "start" : "end";
+                    const x = anchor === "start" ? label.x : label.x + label.width;
+                    const selected = sameEvolutionInteraction(selection, {
+                      kind: "station",
+                      id: station.id,
+                    });
+                    return (
+                      <g
+                        key={label.key}
+                        className={[
+                          "metro-work-label",
+                          station.aggregate ? "aggregate" : "",
+                          selected ? "selected" : "",
+                        ].filter(Boolean).join(" ")}
+                        transform={`translate(${x} ${label.y})`}
+                        data-label-anchor={anchor}
+                      >
+                        {selected ? (
+                          <rect
+                            x={anchor === "start" ? -5 : -label.width - 5}
+                            y={-13}
+                            width={label.width + 10}
+                            height={29}
+                            rx={4}
+                            className="metro-work-label-backdrop"
+                          />
+                        ) : null}
+                        <text textAnchor={anchor} className="metro-work-label-title">
+                          {truncatedLabel(annotation.title, 32)}
+                        </text>
+                        <text y={11} textAnchor={anchor} className="metro-work-label-meta">
+                          {truncatedLabel(annotation.metadata, 46)}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </g>
+
               </svg>
             </div>
-          )}
+            )}
+          </div>
+          <EvolutionLegend
+            trajectories={legendTrajectories}
+            hiddenCount={trajectorySelection.hiddenCount}
+          />
         </div>
+
+        {!inspectorOpen ? (
+          <button
+            type="button"
+            className="metro-inspector-restore"
+            aria-controls={detailsId}
+            aria-expanded="false"
+            onClick={() => setInspectorOpen(true)}
+          >
+            Show inspector
+          </button>
+        ) : null}
 
         <aside
           ref={detailsPanelRef}
@@ -1927,7 +2048,30 @@ export function EvolutionView({
           hidden={!inspectorOpen}
           tabIndex={-1}
         >
-          {selectedTag ? (
+          <header className="metro-details-header">
+            <button
+              type="button"
+              className="metro-details-collapse"
+              aria-label="Collapse inspector"
+              aria-controls={detailsId}
+              aria-expanded={inspectorOpen}
+              onClick={() => setInspectorOpen(false)}
+            >
+              ‹ <span>collapse</span>
+            </button>
+            <span className="metro-details-id" title={inspectorIdentity}>{inspectorIdentity}</span>
+            <button
+              type="button"
+              className="metro-details-close"
+              aria-label="Clear Evolution selection"
+              disabled={!selectedTarget}
+              onClick={clearDetailsTarget}
+            >
+              ×
+            </button>
+          </header>
+          <div className="metro-details-content">
+            {selectedTag ? (
             <>
               <span className="metro-details-kicker">Tag trajectory</span>
               <h3>{selectedTag.tag.label}</h3>
@@ -2091,6 +2235,15 @@ export function EvolutionView({
               <span className="metro-details-kicker">{selectedStation.aggregate ? "Aggregate station" : "Work station"}</span>
               <h3>{selectedHierarchyParent?.label ?? (selectedStation.aggregate ? aggregateCountLabel(selectedStation.entry) : workLabel(index, selectedStation.entry.workIds[0]!))}</h3>
               <p>{selectedHierarchyParent ? `${aggregateCountLabel(selectedStation.entry)} · ` : ""}{selectedStation.entry.temporal.displayLabel} · {dateQualityLabel(selectedStation)} · {reachSummary(selectedStation.entry)}</p>
+              {selectedStation.interchange ? (
+                <div className="metro-continuity-callout">
+                  <strong>Continuity ≠ influence</strong>
+                  <p>
+                    These trajectories meet here through shared tag membership.
+                    Shared membership is not a claim of influence or causality.
+                  </p>
+                </div>
+              ) : null}
               {selectedStation.entry.temporal.precision !== "day" ? (
                 <div className="metro-flexible-date-note">
                   Known only to {selectedStation.entry.temporal.precision === "year"
@@ -2256,11 +2409,12 @@ export function EvolutionView({
               {selectedAtomicRelations.length ? (
                 <>
                   <h4>Explicit relations</h4>
-                  <ul>
+                  <ul className="metro-relation-cards">
                     {selectedAtomicRelations.map((relation) => (
-                      <li key={relation.key}>
-                        {workLabel(index, relation.sourceId)} → {workLabel(index, relation.targetId)} · {humanize(relation.relationType)}
-                        {relation.chronologyConflict ? " · chronology conflict" : ""}
+                      <li key={relation.key} className="metro-relation-card">
+                        <strong>{humanize(relation.relationType)}</strong>
+                        <span>{workLabel(index, relation.sourceId)} → {workLabel(index, relation.targetId)}</span>
+                        {relation.chronologyConflict ? <small>Chronology conflict</small> : null}
                       </li>
                     ))}
                   </ul>
@@ -2397,7 +2551,8 @@ export function EvolutionView({
                 <div><dt>Expansion mode</dt><dd>{expansionMode === "directional" ? "Directional" : "Connected context"}</dd></div>
               </dl>
             </>
-          )}
+            )}
+          </div>
         </aside>
       </div>
       {tooltip ? (
