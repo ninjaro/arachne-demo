@@ -259,7 +259,8 @@ export async function openDemoData(
   const databaseUrl = resolveDataAsset(root, active.database.file);
   const probe = options.rangeProbe ?? reliableRangeSupport;
   let source: ProductRowSource | null = null;
-  if (await probe(databaseUrl, active.database.bytes, fetcher)) {
+  const githubPages = window.location.hostname.endsWith(".github.io");
+  if (!githubPages && await probe(databaseUrl, active.database.bytes, fetcher)) {
     try {
       source = await (options.sqliteOpen ?? SqliteHttpSource.open)(root, active, shards);
     } catch (cause) {
