@@ -72,7 +72,7 @@ jobs:
           .arachne-core/build/arachne product taste-index --database "$database" --product-export "${RUNNER_TEMP}/product.jsonl" --output "${RUNNER_TEMP}/taste-index.json" --compact
           echo "ARACHNE_RESEARCH_ARTIFACT=${RUNNER_TEMP}/research.json" >> "$GITHUB_ENV"
           echo "ARACHNE_TASTE_ARTIFACT=${RUNNER_TEMP}/taste-index.json" >> "$GITHUB_ENV"
-      - uses: actions/setup-node@820762e2bc4f3d14e12023993d81c666bcb5d3ed # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "24"
           cache: npm
