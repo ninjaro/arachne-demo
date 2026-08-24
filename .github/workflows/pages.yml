@@ -65,7 +65,7 @@ jobs:
           ARACHNE_BUILD_TESTS=OFF ARACHNE_BUILD_LEGACY_CLIENT=OFF scripts/build.sh
       - name: Derive exact-state research and taste artifacts transiently
         run: |
-          database="$(python3 -c 'import json; print("data/" + json.load(open("data/state-manifest.json"))["product"]["path"])')"
+          database="$(python3 -c 'import json,pathlib; m=json.load(open("data/state-manifest.json")); print((pathlib.Path("data") / m["product"]["path"]).resolve())')"
           python3 .arachne-core/scripts/export_product_jsonl.py "$database" "${RUNNER_TEMP}/product.jsonl"
           .arachne-core/build/arachne product research --database "$database" --product-export "${RUNNER_TEMP}/product.jsonl" --output "${RUNNER_TEMP}/research.json" --compact
           .arachne-core/build/arachne product taste-index --database "$database" --product-export "${RUNNER_TEMP}/product.jsonl" --output "${RUNNER_TEMP}/taste-index.json" --compact
