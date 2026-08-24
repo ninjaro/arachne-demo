@@ -53,7 +53,6 @@ jobs:
         run: |
           test "$(git -C data rev-parse HEAD)" = "$ARACHNE_DATA_COMMIT"
           git -C data lfs pull
-          git -C data config --local --unset-all http.https://github.com/.extraheader
           python3 -c 'import hashlib,json,pathlib; root=pathlib.Path("data"); m=json.loads((root/"state-manifest.json").read_text()); p=root/m["product"]["path"]; assert hashlib.sha256(p.read_bytes()).hexdigest()==m["product"]["sha256"]'
       - name: Resolve the exact producing Arachne commit
         run: echo "ARACHNE_CORE_COMMIT=$(python3 scripts/publish_data.py --data-root data --print-producer-commit)" >> "$GITHUB_ENV"
