@@ -1,0 +1,213 @@
+{
+  "version": 1,
+  "naming": "Figma-like Component/Variant/Instance",
+  "componentSets": [
+    {
+      "id": "AppShell",
+      "anatomy": ["NavigationRail", "PageWorkspace", "Inspector"],
+      "variants": ["page=Evolution", "page=Browse"],
+      "layout": "fixed 200 / 1348 / 304 desktop columns; the inspector has a collapse affordance but no depicted collapsed geometry"
+    },
+    {
+      "id": "NavigationRail",
+      "anatomy": ["BrandSnapshot", "PrimaryNav", "PinnedSection", "SavedSection", "ResearchQueueCallout"],
+      "variants": ["page=Evolution", "page=Browse", "item=default", "item=active", "item=selected", "item=seed"],
+      "metrics": { "width": 200, "padding": "18px 12px", "sectionGap": 22, "itemRadius": 7 }
+    },
+    {
+      "id": "ControlChip",
+      "anatomy": ["Label", "OptionalValue", "OptionalBadge", "OptionalRemove"],
+      "variants": ["neutral", "active-blue", "active-purple", "dashed-add", "badge", "text-only"],
+      "metrics": { "heightApprox": 29, "horizontalPadding": "9–10px", "radius": 7, "inlineGap": 7 }
+    },
+    {
+      "id": "DepthStepper",
+      "anatomy": ["DirectionLabel", "Decrease", "Value", "Increase"],
+      "variants": ["Earlier", "Later"],
+      "metrics": { "controlRadius": 7, "segmentPadding": "5px 6–9px" }
+    },
+    {
+      "id": "EvolutionCommandBar",
+      "anatomy": ["SeedsLabel", "SeedTokens", "AddTrajectory", "Divider", "EarlierStepper", "LaterStepper", "Divider", "Filters", "Visibility", "Bundling"],
+      "variants": ["closed-controls"],
+      "metrics": { "height": 67, "padding": "10px 14px", "gap": 10 }
+    },
+    {
+      "id": "SceneStatusBar",
+      "anatomy": ["SceneCounts", "ChronologyNote", "DetailSelector", "ZoomStepper", "FitButton", "ResetAction"],
+      "variants": ["Evolution"],
+      "metrics": { "height": 57, "padding": "8px 14px", "gap": 14 }
+    },
+    {
+      "id": "EvolutionCanvas",
+      "anatomy": ["TimeAxis", "Grid", "TrajectoryLayer", "ExplicitRelationOverlay", "StationLayer", "LabelLayer", "SelectionOverlay"],
+      "variants": ["dense-desktop"],
+      "metrics": { "width": 1348, "height": 700, "axisHeight": 56 }
+    },
+    {
+      "id": "TimeAxis",
+      "anatomy": ["YearLabel", "VerticalGrid", "CompressedGap", "SelectedYearGuide"],
+      "variants": ["ordinary-year", "selected-year", "compressed-gap"],
+      "visual": "chronological order, nonmetric spacing; selected year is brighter and aligned to a dotted guide"
+    },
+    {
+      "id": "Trajectory",
+      "anatomy": ["SolidSegment", "BoundaryStub", "InlineLabel", "OptionalTerminal"],
+      "variants": ["seed", "ordinary", "context-stub", "variable-strength"],
+      "visual": "round-capped color path; secondary HTML geometry defines 3.5–11px segment widths while the image establishes variable width but no continuous taper; faded stubs use 0.22 opacity; terminal is a 15px outlined plus circle",
+      "semanticConstraint": "width means membership significance only and does not change for hover, focus, or selection"
+    },
+    {
+      "id": "Station",
+      "anatomy": ["DarkKnockout", "VisibleGlyph", "WorkAnnotation"],
+      "variants": ["single-work-ring", "interchange-vertical-cap", "aggregate-rounded-outline", "selected-interchange"],
+      "visual": "single work is a dark point with colored ring; interchange is a pale vertical capsule; aggregate is a dark rounded outline; selected station adds white glow and label slab",
+      "semanticConstraint": "an aggregate does not become an atomic interchange merely because different children support different tags"
+    },
+    {
+      "id": "WorkAnnotation",
+      "anatomy": ["Title", "DateKindCredit"],
+      "variants": ["start-aligned", "centered", "end-aligned", "selected-with-backing-plate", "aggregate-count-in-metadata"],
+      "metrics": { "title": "11.5px/600 Sans", "metadata": "10px Mono" }
+    },
+    {
+      "id": "ExplicitRelation",
+      "anatomy": ["CurvedDashedPath", "Arrowhead", "OptionalTypeLabel"],
+      "variants": ["adapted-from", "influenced-by", "unlabelled"],
+      "visual": "amber 1.7px path, 5px/4px dash, directional arrow; above trajectories and below station glyphs",
+      "semanticConstraint": "exact work endpoints; visually prior to tag continuity without becoming an ordinary trajectory"
+    },
+    {
+      "id": "TrajectoryLegend",
+      "anatomy": ["TrajectoryTokenRow", "HiddenCount", "SymbolKeyRow"],
+      "variants": ["seed-token", "ordinary-token", "hidden-token"],
+      "metrics": { "height": 83, "padding": "9px 14px", "rowGap": 7 }
+    },
+    {
+      "id": "InspectorShell",
+      "anatomy": ["InspectorHeader", "InspectorContent"],
+      "variants": ["work", "selection-set", "expanded", "collapsed-undepicted"],
+      "metrics": { "width": 304, "headerHeight": 32, "headerPaddingApprox": "5px 14px", "contentPadding": 14, "contentGap": 14 }
+    },
+    {
+      "id": "InspectorWork",
+      "anatomy": ["CanonicalIdHeader", "WorkTitleMeta", "MediaSlot", "TrajectoryMemberships", "ContinuityCallout", "RelationCards", "FromHereActions", "NearbyAggregatesNote"],
+      "variants": ["selected-interchange"],
+      "visual": "section labels are 10px uppercase Mono; relation cards use amber border/accent; media is 16:10"
+    },
+    {
+      "id": "RelationCard",
+      "anatomy": ["DirectionAndType", "RelatedWork", "EvidenceSource"],
+      "variants": ["outgoing", "incoming"],
+      "visual": "dark warm surface, amber outline/type, compact three-line stack"
+    },
+    {
+      "id": "BrowseCommandBar",
+      "anatomy": ["SearchField", "KindFilter", "YearsFilter", "ActiveTagFilter", "SortControl"],
+      "variants": ["dense-desktop"],
+      "metrics": { "height": 52, "padding": "10px 14px", "gap": 10 }
+    },
+    {
+      "id": "WorkTable",
+      "anatomy": ["ResultStatus", "ColumnHeader", "WorkRows", "ResultFooter"],
+      "columns": ["Selection", "Work", "Year", "Kind", "Credit", "Trajectories", "Relations"],
+      "columnWidths": [26, 300, 66, 116, 150, "1fr", 96]
+    },
+    {
+      "id": "WorkRow",
+      "anatomy": ["SelectionBox", "Title", "OptionalHierarchyBadge", "Year", "Kind", "Credit", "TrajectoryMiniBars", "RelationCount"],
+      "variants": ["default", "selected", "aggregate-labelled"],
+      "metrics": { "height": 35, "padding": "9px 14px" }
+    },
+    {
+      "id": "InspectorSelectionSet",
+      "anatomy": ["SelectionCountHeader", "DateList", "SharedTrajectoryRows", "SeedEvolutionButton", "PinAllButton", "BehaviorNote"],
+      "variants": ["three-works-selected"]
+    },
+    {
+      "id": "ActionButton",
+      "anatomy": ["Label"],
+      "variants": ["strong-surface", "neutral-surface", "text-action", "disabled-undepicted"],
+      "metrics": { "padding": 8, "radius": 7 }
+    }
+  ],
+  "frameInstances": {
+    "Evolution/DesktopDense": [
+      { "component": "BrandSnapshot", "count": 1, "content": "Arachne; product-2026-07-11; 12,480 works; 41,207 tags" },
+      { "component": "PrimaryNavItem", "count": 4, "active": "Evolution" },
+      { "component": "PinnedItem", "count": 3 },
+      { "component": "SavedViewItem", "count": 2 },
+      { "component": "ResearchQueueCallout", "count": 1 },
+      { "component": "SeedToken", "count": 2, "labels": ["Science fiction", "Cyberpunk"] },
+      { "component": "AddTrajectory", "count": 1 },
+      { "component": "DepthStepper", "count": 2 },
+      { "component": "ClosedToolbarControl", "count": 3, "labels": ["Filters 2", "Visibility 7 / 19", "Bundling on"] },
+      { "component": "SceneStatusControl", "count": 4, "labels": ["Detail works", "Zoom 1.0×", "Fit", "Reset view"] },
+      { "component": "YearLabel", "count": 18 },
+      { "component": "CompressedGap", "count": 1, "visual": "ellipsis with two dotted guides" },
+      { "component": "SelectedYearGuide", "count": 1, "year": "1995" },
+      { "component": "Trajectory", "count": 7 },
+      { "component": "TrajectorySolidSegment", "count": 15 },
+      { "component": "TrajectoryBoundaryStub", "count": 11 },
+      { "component": "TrajectoryTerminal", "count": 7 },
+      { "component": "WorkAnnotation", "count": 20 },
+      { "component": "SingleWorkStation", "count": 8 },
+      { "component": "InterchangeCap", "count": 10 },
+      { "component": "AggregateGlyph", "count": 2, "declaredSummaryCount": 3 },
+      { "component": "ExplicitRelationPath", "count": 6 },
+      { "component": "ExplicitRelationLabel", "count": 2 },
+      { "component": "SelectedWorkOverlay", "count": 1 },
+      { "component": "TrajectoryLegendToken", "count": 7 },
+      { "component": "HiddenTrajectoryToken", "count": 1, "label": "12 hidden" },
+      { "component": "SymbolLegendItem", "count": 5 },
+      { "component": "InspectorTrajectoryRow", "count": 4 },
+      { "component": "ContinuityCallout", "count": 1 },
+      { "component": "RelationCard", "count": 2 },
+      { "component": "FromHereAction", "count": 4 },
+      { "component": "NearbyAggregatesNote", "count": 1 }
+    ],
+    "Browse/DesktopDense": [
+      { "component": "BrandSnapshot", "count": 1 },
+      { "component": "PrimaryNavItem", "count": 4, "active": "Browse" },
+      { "component": "PinnedItem", "count": 3 },
+      { "component": "SearchField", "count": 1 },
+      { "component": "BrowseFilterControl", "count": 4, "labels": ["Kind", "Years", "Tag", "Sort"] },
+      { "component": "SelectionTransferAction", "count": 1 },
+      { "component": "WorkTableHeader", "count": 1 },
+      { "component": "WorkRow", "count": 10, "selected": 3 },
+      { "component": "HierarchyBadge", "count": 3 },
+      { "component": "ResultFooter", "count": 1 },
+      { "component": "SharedTrajectoryRow", "count": 3 },
+      { "component": "SelectionSetAction", "count": 2 }
+    ]
+  },
+  "layerOrder": [
+    "canvas background, chronological grid, and axis labels",
+    "trajectory segments and stubs",
+    "trajectory terminals",
+    "explicit-relation paths, arrowheads, and relation labels",
+    "selection glow",
+    "station knockouts and visible glyphs",
+    "trajectory labels",
+    "selected work label backing plate",
+    "work titles and metadata",
+    "non-rendering hit targets and transient hover UI (not depicted)"
+  ],
+  "stateEvidence": {
+    "active": "Evolution/Browse nav row, seeded chips, seeded trajectory labels, Bundling on",
+    "selected": "Ghost in the Shell station and inspector; three Browse rows with filled cyan selection boxes",
+    "focusedDistinctFromSelected": "not depicted",
+    "hover": "not depicted; durable rule allows preview emphasis without changing trajectory width",
+    "disabled": "not depicted",
+    "inspectorExpanded": "depicted",
+    "inspectorCollapsed": "affordance only; geometry unknown",
+    "aggregateCollapsed": "depicted as rounded outline",
+    "aggregateExpanded": "not depicted",
+    "popoverOpen": "not depicted"
+  },
+  "overlaysAndFloatingControls": {
+    "depictedOverlays": ["explicit relations", "selected-year guide", "selected-work glow", "selected label backing plate"],
+    "depictedFloatingControls": [],
+    "notDepicted": ["tooltip", "modal", "filter popover", "minimap", "free-floating pan/zoom controls"]
+  }
+}

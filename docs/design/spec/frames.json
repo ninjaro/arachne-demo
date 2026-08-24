@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "units": "CSS design pixels; primary PNG coordinates divided by 2",
+  "sourcePriority": [
+    "../3a-evolution.png",
+    "../3b-browse.png",
+    "../Arachne Viewer - Redesign.dc.html",
+    "../EVOLUTION.md"
+  ],
+  "sharedShell": {
+    "width": 1852,
+    "columns": [
+      { "id": "navigationRail", "x": 0, "width": 200, "ratio": 0.108 },
+      { "id": "pageWorkspace", "x": 200, "width": 1348, "ratio": 0.728 },
+      { "id": "inspector", "x": 1548, "width": 304, "ratio": 0.164 }
+    ],
+    "outerRadius": 14,
+    "overflow": "hidden",
+    "shadow": {
+      "value": "0 30px 80px rgba(0, 0, 0, 0.5)",
+      "source": "secondary HTML frame wrapper",
+      "primaryImageEvidence": "not visible because each PNG is cropped to the frame boundary"
+    }
+  },
+  "frames": {
+    "Evolution/DesktopDense": {
+      "primarySource": "../3a-evolution.png",
+      "exportSize": { "width": 3704, "height": 1814, "scale": 2 },
+      "frameSize": { "width": 1852, "height": 907 },
+      "regions": [
+        {
+          "id": "NavigationRail",
+          "rect": { "x": 0, "y": 0, "width": 200, "height": 907 },
+          "padding": { "top": 18, "right": 12, "bottom": 18, "left": 12 },
+          "sectionGap": 22
+        },
+        {
+          "id": "EvolutionWorkspace",
+          "rect": { "x": 200, "y": 0, "width": 1348, "height": 907 },
+          "childrenCoordinateSpace": "local",
+          "children": [
+            { "id": "CommandBar", "rect": { "x": 0, "y": 0, "width": 1348, "height": 67 } },
+            { "id": "SceneStatusBar", "rect": { "x": 0, "y": 67, "width": 1348, "height": 57 } },
+            {
+              "id": "EvolutionCanvas",
+              "rect": { "x": 0, "y": 124, "width": 1348, "height": 700 },
+              "viewBox": "0 0 1348 700",
+              "children": [
+                { "id": "TimeAxis", "rect": { "x": 0, "y": 0, "width": 1348, "height": 56 } },
+                { "id": "Plot", "rect": { "x": 0, "y": 56, "width": 1348, "height": 644 } }
+              ]
+            },
+            { "id": "TrajectoryLegend", "rect": { "x": 0, "y": 824, "width": 1348, "height": 83 } }
+          ]
+        },
+        {
+          "id": "Inspector/Work",
+          "rect": { "x": 1548, "y": 0, "width": 304, "height": 907 },
+          "headerHeight": 32,
+          "headerPaddingApprox": "5px 14px",
+          "contentPadding": 14,
+          "contentGap": 14,
+          "mediaAspectRatio": "16 / 10"
+        }
+      ]
+    },
+    "Browse/DesktopDense": {
+      "primarySource": "../3b-browse.png",
+      "exportSize": { "width": 3704, "height": 1024, "scale": 2 },
+      "frameSize": { "width": 1852, "height": 512 },
+      "regions": [
+        {
+          "id": "NavigationRail",
+          "rect": { "x": 0, "y": 0, "width": 200, "height": 512 },
+          "padding": { "top": 18, "right": 12, "bottom": 18, "left": 12 },
+          "sectionGap": 22
+        },
+        {
+          "id": "BrowseWorkspace",
+          "rect": { "x": 200, "y": 0, "width": 1348, "height": 512 },
+          "childrenCoordinateSpace": "local",
+          "children": [
+            { "id": "BrowseCommandBar", "rect": { "x": 0, "y": 0, "width": 1348, "height": 52 } },
+            { "id": "ResultStatusBar", "rect": { "x": 0, "y": 52, "width": 1348, "height": 42 } },
+            { "id": "WorkTableHeader", "rect": { "x": 0, "y": 94, "width": 1348, "height": 29 } },
+            { "id": "WorkRows", "rect": { "x": 0, "y": 123, "width": 1348, "height": 350 }, "rowCount": 10, "rowHeight": 35 },
+            { "id": "ResultFooter", "rect": { "x": 0, "y": 477, "width": 1348, "height": 35 } }
+          ]
+        },
+        {
+          "id": "Inspector/SelectionSet",
+          "rect": { "x": 1548, "y": 0, "width": 304, "height": 512 },
+          "headerHeightApprox": 32,
+          "headerPaddingApprox": "5px 14px",
+          "contentPadding": 14,
+          "contentGap": 14
+        }
+      ]
+    }
+  },
+  "responsiveEvidence": {
+    "depicted": "fixed desktop only",
+    "fixedAtReference": [
+      "1852px frame",
+      "200px navigation rail",
+      "1348px workspace",
+      "304px inspector"
+    ],
+    "internalFlexRelationships": [
+      "The Browse search and trajectory table column flex within the center region.",
+      "Inspector media remains fluid at a 16:10 aspect ratio.",
+      "The inspector has a collapse affordance, but its collapsed width is not depicted."
+    ],
+    "durableConstraint": "The canvas has spatial priority over the inspector, but the references do not define viewport-resize behavior.",
+    "unknown": [
+      "breakpoints",
+      "mobile or tablet composition",
+      "narrow command-bar wrapping or overflow",
+      "collapsed inspector geometry"
+    ]
+  }
+}

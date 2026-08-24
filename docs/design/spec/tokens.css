@@ -1,0 +1,131 @@
+/* Reference tokens extracted from 3a-evolution.png and 3b-browse.png.
+   This file is documentation and is not imported by the Viewer. */
+
+:root {
+  /* Type */
+  --font-ui: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, monospace;
+  --type-brand: 600 17px/1 var(--font-ui);
+  --type-inspector-title: 600 20px/1.25 var(--font-ui);
+  --type-selection-inspector-title: 600 18px/1.3 var(--font-ui);
+  --type-nav: 400 14px/1.3 var(--font-ui);
+  --type-control: 400 13px/1.2 var(--font-ui);
+  --type-body: 400 12.5px/1.5 var(--font-ui);
+  --type-summary: 500 12.5px/1 var(--font-data);
+  --type-work-title: 600 11.5px/1.2 var(--font-ui);
+  --type-work-meta: 400 10px/1.3 var(--font-data);
+  --type-section: 600 10px/1 var(--font-data);
+  --type-axis: 400 11px/1 var(--font-data);
+  --type-trajectory-label: 500 9.5px/1 var(--font-data);
+  --tracking-section: 0.1em;
+  --tracking-trajectory: 0.12em;
+
+  /* Frame geometry */
+  --frame-width: 1852px;
+  --evolution-frame-height: 907px;
+  --browse-frame-height: 512px;
+  --rail-width: 200px;
+  --workspace-width-reference: 1348px;
+  --inspector-width: 304px;
+  --evolution-command-height: 67px;
+  --evolution-status-height: 57px;
+  --evolution-canvas-height: 700px;
+  --evolution-axis-height: 56px;
+  --evolution-legend-height: 83px;
+
+  /* Spacing */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 10px;
+  --space-6: 12px;
+  --space-7: 14px;
+  --space-8: 18px;
+  --space-9: 22px;
+
+  /* Radius and elevation */
+  --radius-checkbox: 3px;
+  --radius-label-plate: 5px;
+  --radius-control: 7px;
+  --radius-panel: 8px;
+  --radius-frame: 14px;
+  --radius-pill: 999px;
+  /* HTML wrapper value; the cropped primary PNGs do not show exterior shadow. */
+  --shadow-frame: 0 30px 80px rgb(0 0 0 / 50%);
+
+  /* Surfaces */
+  --surface-page: #0b0d0e;
+  --surface-canvas: #0a0e0f;
+  --surface-rail: #0b0e0f;
+  --surface-toolbar: #0f1214;
+  --surface-status: #0d1113;
+  --surface-inspector: #12171a;
+  --surface-selected-row: #12181a;
+  --surface-control: #161b1d;
+  --surface-control-active: #1d2427;
+  --surface-nav-active: #1f2629;
+  --surface-info: #131b1a;
+  --surface-relation-card: #161513;
+  --surface-seed-blue: #141d23;
+  --surface-seed-purple: #1c1826;
+  --surface-media-stripe-a: #171d1f;
+  --surface-media-stripe-b: #1c2325;
+
+  /* Borders and grid */
+  --border-subtle: #1c2325;
+  --border-default: #232a2c;
+  --border-control: #2c3437;
+  --border-dashed: #33403f;
+  --border-seed-blue: #2c4553;
+  --border-seed-purple: #40355c;
+  --border-relation-card: #3a3220;
+  --grid-default: #151c1e;
+  --border-row: #161c1e;
+
+  /* Text ladder */
+  --text-strong: #eef2f2;
+  --text-primary: #dbe1e1;
+  --text-control: #c3cbcd;
+  --text-secondary: #a8b1b3;
+  --text-meta: #98a2a5;
+  --text-muted: #7d878a;
+  --text-faint: #6d7679;
+  --text-ghost: #5f696c;
+  --text-seed-blue: #bcd8ea;
+  --text-selected: #ffffff;
+
+  /* Semantic and trajectory colors */
+  --trajectory-science-fiction: #5aa6dc;
+  --trajectory-cyberpunk: #a98ade;
+  --trajectory-anime-manga: #57bb9b;
+  --trajectory-artificial-person: #cf85ab;
+  --trajectory-dystopia: #cf7268;
+  --trajectory-new-wave: #d99a4e;
+  --trajectory-neo-noir: #9ba84f;
+  --relation-explicit: #c9a35c;
+  --semantic-info: #7fb3aa;
+  --semantic-info-border: #4e7a73;
+  --selection-box: #8fb4cd;
+  --station-interchange: #cfd7d6;
+
+  /* Graph grammar */
+  /* Exact secondary-HTML segment range; the PNG establishes variation, not taper. */
+  --trajectory-width-min: 3.5px;
+  --trajectory-width-max: 11px;
+  --trajectory-stub-opacity: 0.22;
+  --station-radius: 6px;
+  --station-stroke: 3.5px;
+  --terminal-radius: 7.5px;
+  --terminal-stroke: 1.4px;
+  --terminal-stroke-opacity: 0.55;
+  --interchange-knockout-width: 17px;
+  --interchange-visible-width: 10px;
+  --aggregate-stroke: 3px;
+  --relation-width: 1.7px;
+  --relation-dash: 5px 4px;
+  --selected-glow-width: 22px;
+  --selected-glow-opacity: 0.14;
+  --selected-label-opacity: 0.07;
+  --selected-guide-opacity: 0.14;
+}

@@ -4,6 +4,9 @@ The durable interface rules live in [Evolution visual design](EVOLUTION.md),
 with graph meaning defined by
 [Evolution semantics](../reference/EVOLUTION_SEMANTICS.md).
 
+The normalized, implementation-ready reference is the
+[structured design specification](spec/README.md).
+
 These artifacts preserve the redesign source and visual references from before
 the repository split:
 

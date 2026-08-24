@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1852 907" role="img" aria-labelledby="title desc">
+  <title id="title">Annotated Evolution desktop frame</title>
+  <desc id="desc">Schematic of the 1852 by 907 reference frame with a 200 pixel rail, 1348 pixel workspace, and 304 pixel inspector.</desc>
+  <defs>
+    <style>
+      .label { font: 600 12px "IBM Plex Sans", sans-serif; fill: #eef2f2; }
+      .meta { font: 500 10px "IBM Plex Mono", monospace; fill: #7d878a; letter-spacing: .05em; }
+      .section { font: 600 10px "IBM Plex Mono", monospace; fill: #98a2a5; letter-spacing: .1em; }
+      .relation-label { font: 500 10px "IBM Plex Mono", monospace; fill: #c9a35c; letter-spacing: .05em; }
+      .border { stroke: #2c3437; stroke-width: 1; }
+      .grid { stroke: #151c1e; stroke-width: 1; }
+    </style>
+    <marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0L8 4L0 8Z" fill="#c9a35c"/>
+    </marker>
+  </defs>
+
+  <rect width="1852" height="907" rx="14" fill="#0a0e0f"/>
+
+  <!-- Frame / Navigation rail -->
+  <rect x="0" y="0" width="200" height="907" fill="#0b0e0f" class="border"/>
+  <text x="18" y="28" class="label">Navigation rail</text>
+  <text x="18" y="44" class="meta">200 × 907</text>
+  <rect x="12" y="72" width="176" height="34" rx="7" fill="#1f2629"/>
+  <text x="24" y="94" class="label">Evolution · active</text>
+  <text x="24" y="135" class="section">PINNED</text>
+  <rect x="12" y="146" width="176" height="46" rx="7" fill="#12181a"/>
+  <text x="24" y="174" class="meta">Pinned entity</text>
+  <text x="24" y="225" class="section">SAVED</text>
+  <rect x="12" y="842" width="176" height="49" rx="8" fill="none" stroke="#232a2c"/>
+  <text x="24" y="869" class="meta">Research queue</text>
+
+  <!-- Frame / Evolution workspace -->
+  <g transform="translate(200 0)">
+    <rect width="1348" height="67" fill="#0f1214" class="border"/>
+    <text x="14" y="25" class="section">COMMAND BAR · 1348 × 67</text>
+    <rect x="124" y="17" width="148" height="32" rx="7" fill="#141d23" stroke="#2c4553"/>
+    <rect x="282" y="17" width="126" height="32" rx="7" fill="#1c1826" stroke="#40355c"/>
+    <rect x="432" y="17" width="101" height="32" rx="7" fill="#161b1d" stroke="#2c3437"/>
+    <rect x="548" y="17" width="101" height="32" rx="7" fill="#161b1d" stroke="#2c3437"/>
+    <rect x="684" y="17" width="91" height="32" rx="7" fill="#161b1d" stroke="#2c3437"/>
+    <rect x="786" y="17" width="119" height="32" rx="7" fill="#161b1d" stroke="#2c3437"/>
+    <rect x="916" y="17" width="111" height="32" rx="7" fill="#161b1d" stroke="#2c3437"/>
+
+    <rect y="67" width="1348" height="57" fill="#0d1113" class="border"/>
+    <text x="14" y="101" class="section">SCENE STATUS · COUNTS · CHRONOLOGY · DETAIL · ZOOM · FIT · RESET</text>
+
+    <g transform="translate(0 124)">
+      <rect width="1348" height="700" fill="#0a0e0f"/>
+      <rect width="1348" height="56" fill="#0a0e0f" class="border"/>
+      <text x="14" y="24" class="section">TIME AXIS · 56</text>
+      <text x="14" y="44" class="meta">chronological order; nonmetric spacing</text>
+
+      <g transform="translate(0 56)">
+        <line x1="130" y1="0" x2="130" y2="644" class="grid"/>
+        <line x1="330" y1="0" x2="330" y2="644" class="grid"/>
+        <line x1="570" y1="0" x2="570" y2="644" class="grid"/>
+        <line x1="790" y1="0" x2="790" y2="644" class="grid"/>
+        <line x1="1050" y1="0" x2="1050" y2="644" stroke="#fff" stroke-opacity=".1" stroke-dasharray="3 5"/>
+        <line x1="1220" y1="0" x2="1220" y2="644" class="grid"/>
+
+        <path d="M62 154H330H630H1050H1240" fill="none" stroke="#5aa6dc" stroke-width="9" stroke-linecap="round"/>
+        <path d="M330 280H700H1050H1280" fill="none" stroke="#cf85ab" stroke-width="6" stroke-linecap="round"/>
+        <path d="M560 412H800H1050H1280" fill="none" stroke="#57bb9b" stroke-width="8" stroke-linecap="round"/>
+        <path d="M700 336H1050H1220" fill="none" stroke="#a98ade" stroke-width="7" stroke-linecap="round"/>
+
+        <path d="M630 154C760 230 930 230 1045 160" fill="none" stroke="#c9a35c" stroke-width="1.7" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+        <text x="835" y="234" class="relation-label">EXPLICIT RELATION OVERLAY</text>
+
+        <circle cx="130" cy="154" r="6" fill="#0a0e0f" stroke="#5aa6dc" stroke-width="3.5"/>
+        <line x1="330" y1="141" x2="330" y2="293" stroke="#0a0e0f" stroke-width="17" stroke-linecap="round"/>
+        <line x1="330" y1="141" x2="330" y2="293" stroke="#cfd7d6" stroke-width="10" stroke-linecap="round"/>
+        <rect x="680" y="405" width="40" height="14" rx="7" fill="#0a0e0f" stroke="#57bb9b" stroke-width="3"/>
+        <line x1="1050" y1="140" x2="1050" y2="426" stroke="#fff" stroke-opacity=".14" stroke-width="22" stroke-linecap="round"/>
+        <line x1="1050" y1="140" x2="1050" y2="426" stroke="#0a0e0f" stroke-width="17" stroke-linecap="round"/>
+        <line x1="1050" y1="140" x2="1050" y2="426" stroke="#fff" stroke-width="10" stroke-linecap="round"/>
+
+        <text x="74" y="138" class="meta" fill="#5aa6dc">TRAJECTORY</text>
+        <text x="116" y="184" class="label">station + work label</text>
+        <text x="286" y="316" class="label">interchange</text>
+        <text x="670" y="442" class="label">aggregate</text>
+        <text x="1004" y="458" class="label">selected work</text>
+      </g>
+    </g>
+
+    <rect y="824" width="1348" height="83" fill="#0f1214" class="border"/>
+    <text x="14" y="850" class="section">TRAJECTORY TOKENS + HIDDEN COUNT</text>
+    <text x="14" y="879" class="meta">station · interchange · aggregate · documented relation · thickness = centrality</text>
+  </g>
+
+  <!-- Component / Inspector -->
+  <g transform="translate(1548 0)">
+    <rect width="304" height="907" fill="#12171a" class="border"/>
+    <rect width="304" height="32" fill="#12171a" class="border"/>
+    <text x="14" y="21" class="meta">‹ COLLAPSE</text>
+    <text x="290" y="21" text-anchor="end" class="meta">ID · CLOSE</text>
+    <text x="14" y="65" class="label">Inspector / work</text>
+    <text x="14" y="81" class="meta">304 × 907 · padding 14</text>
+    <rect x="14" y="104" width="276" height="172.5" rx="8" fill="#171d1f" stroke="#232a2c"/>
+    <text x="152" y="195" text-anchor="middle" class="meta">MEDIA · 16:10</text>
+    <text x="14" y="314" class="section">TRAJECTORY MEMBERSHIPS</text>
+    <line x1="14" y1="344" x2="50" y2="344" stroke="#5aa6dc" stroke-width="9" stroke-linecap="round"/>
+    <line x1="14" y1="369" x2="50" y2="369" stroke="#a98ade" stroke-width="7" stroke-linecap="round"/>
+    <line x1="14" y1="394" x2="50" y2="394" stroke="#57bb9b" stroke-width="6" stroke-linecap="round"/>
+    <line x1="14" y1="419" x2="50" y2="419" stroke="#cf85ab" stroke-width="6" stroke-linecap="round"/>
+    <rect x="14" y="448" width="276" height="72" rx="8" fill="#131b1a"/>
+    <text x="26" y="474" class="section">CONTINUITY ≠ INFLUENCE</text>
+    <text x="14" y="559" class="section">DOCUMENTED RELATIONS</text>
+    <rect x="14" y="574" width="276" height="64" rx="8" fill="#161513" stroke="#3a3220"/>
+    <rect x="14" y="648" width="276" height="64" rx="8" fill="#161513" stroke="#3a3220"/>
+    <text x="14" y="751" class="section">FROM HERE · 2 × 2 ACTIONS</text>
+    <rect x="14" y="766" width="134" height="34" rx="7" fill="#1b2124" stroke="#2c3437"/>
+    <rect x="156" y="766" width="134" height="34" rx="7" fill="#1b2124" stroke="#2c3437"/>
+    <rect x="14" y="806" width="134" height="34" rx="7" fill="#161b1d" stroke="#2c3437"/>
+    <rect x="156" y="806" width="134" height="34" rx="7" fill="#161b1d" stroke="#2c3437"/>
+    <text x="14" y="876" class="meta">Nearby aggregates note</text>
+  </g>
+
+  <rect x="0.5" y="0.5" width="1851" height="906" rx="13.5" fill="none" stroke="#33403f"/>
+</svg>
