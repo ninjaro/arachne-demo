@@ -21,30 +21,35 @@ const tastePath = active?.derived?.taste
 const hasPinnedArtifacts = !!active && !!researchPath && !!tastePath &&
   existsSync(researchPath) && existsSync(tastePath);
 
+function requireActive() {
+  if (!active) throw new Error("active data manifest is absent");
+  return active;
+}
+
 if (process.env.ARACHNE_REQUIRE_NATIVE_ARTIFACTS === "1" && !hasPinnedArtifacts) {
   throw new Error("required exact-state native research/taste artifacts were not published");
 }
 
 describe.skipIf(!hasPinnedArtifacts)("pinned native artifacts", () => {
-  if (!active) throw new Error("active data manifest is absent");
-
   it("parses exact-state native research without changing its semantics", () => {
+    const pinnedActive = requireActive();
     const value: unknown = JSON.parse(
       readFileSync(researchPath, "utf8"),
     );
     expect(isResearchData(value)).toBe(true);
     if (!isResearchData(value)) return;
-    expect(value.productSnapshotId).toBe(active.productSnapshotId);
-    expect(value.product_snapshot.sha256).toBe(active.productSha256);
+    expect(value.productSnapshotId).toBe(pinnedActive.productSnapshotId);
+    expect(value.product_snapshot.sha256).toBe(pinnedActive.productSha256);
   });
 
   it("parses the complete native taste contract and snapshot identity", () => {
+    const pinnedActive = requireActive();
     const value: unknown = JSON.parse(
       readFileSync(tastePath, "utf8"),
     );
     const parsed = parseTasteIndex(value, {
-      snapshotId: active.productSnapshotId,
-      contentSha256: active.productSha256,
+      snapshotId: pinnedActive.productSnapshotId,
+      contentSha256: pinnedActive.productSha256,
     });
     expect(parsed.entities.size).toBeGreaterThan(0);
     expect(parsed.features.size).toBeGreaterThan(0);
