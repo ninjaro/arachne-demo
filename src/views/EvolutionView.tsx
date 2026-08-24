@@ -1,28 +1,20 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import type {
-  CSSProperties,
-  KeyboardEvent,
-  MouseEvent,
-  PointerEvent,
-} from "react";
 import { EvolutionControls } from "../components/EvolutionControls";
 import type { EvolutionTasteFilter as ControlsTasteFilter } from "../components/EvolutionControls";
+import { EvolutionCanvas } from "../components/EvolutionCanvas";
+import { EvolutionInspector } from "../components/EvolutionInspector";
 import {
   EvolutionLegend,
   EvolutionSceneStatus,
 } from "../components/EvolutionChrome";
-import { EntityRatingButtons } from "../components/common";
 import type { OpenHandler, RateHandler } from "../components/common";
 import {
-  aggregateStationRepresentedWorkCount,
-  aggregateStationRepresentedWorkIds,
   buildEvolutionIndex,
   buildVisibleEvolution,
   defaultEvolutionSeedTagId,
 } from "../lib/evolution";
 import type {
   AggregateStation,
-  DirectionalReachInfo,
   ExpansionMode,
   EvolutionIndex,
   ReachReason,
@@ -41,7 +33,6 @@ import type { DelayedPreviewController } from "../lib/evolution-hover";
 import {
   MAX_TRAJECTORY_SEGMENT_WIDTH,
   segmentDisplayStrength,
-  tagStrengthBand,
   trajectorySegmentWidth,
 } from "../lib/evolution-strength";
 import { buildEvolutionTrajectoryProjection } from "../lib/evolution-trajectory-projection";
@@ -50,11 +41,7 @@ import {
   selectVisibleEvolutionTrajectories,
 } from "../lib/evolution-trajectory-selection";
 import type { TagTrajectoryGroup } from "../lib/trajectory-bundles";
-import {
-  BUNDLE_EQUIVALENCE_REASON,
-  groupUniqueTagLabels,
-  strongestTagSummaries,
-} from "../lib/trajectory-bundles";
+import { groupUniqueTagLabels, strongestTagSummaries } from "../lib/trajectory-bundles";
 import type {
   EvolutionInteractionLayer,
   EvolutionInteractionTarget,
@@ -64,20 +51,20 @@ import {
   aggregateMetroTrajectoryGroupReach,
   buildTimeNetScene,
 } from "../lib/timenets";
-import type {
-  MetroBucket,
-  MetroExplicitRelation,
-  MetroRenderableTrajectoryGroup,
-  MetroScene,
-  MetroStation,
-} from "../lib/timenets";
+import type { MetroRenderableTrajectoryGroup, MetroScene } from "../lib/timenets";
 import type { Domain, EntityId, Ratings } from "../lib/types";
-import { centralityScaleLabel, humanize } from "../lib/format";
+import { humanize } from "../lib/format";
 import {
   deterministicTasteSeedTags,
   inferConceptTaste,
 } from "../lib/taste";
 import type { TasteIndex } from "../lib/taste";
+
+export {
+  evolutionStationMarkerGeometry,
+  shouldRenderTemporalRegion,
+} from "../components/EvolutionCanvas";
+export type { EvolutionStationMarkerGeometry } from "../components/EvolutionCanvas";
 
 const DEFAULT_EARLIER_DEPTH = 0;
 const DEFAULT_LATER_DEPTH = 0;
@@ -118,117 +105,12 @@ interface ProvenanceGroup {
   occurrences: number;
 }
 
-function activateOnKeyboard(
-  event: KeyboardEvent<SVGGElement>,
-  action: () => void,
-) {
-  if (event.key === "Enter" || event.key === " ") {
-    event.preventDefault();
-    event.stopPropagation();
-    action();
-    return;
-  }
-
-  const direction =
-    event.key === "ArrowRight" || event.key === "ArrowDown"
-      ? 1
-      : event.key === "ArrowLeft" || event.key === "ArrowUp"
-        ? -1
-        : 0;
-  if (!direction && event.key !== "Home" && event.key !== "End") return;
-  const svg = event.currentTarget.ownerSVGElement;
-  if (!svg) return;
-  const items = [...svg.querySelectorAll<SVGGElement>("[data-metro-interactive]")];
-  if (!items.length) return;
-  const currentIndex = items.indexOf(event.currentTarget);
-  const nextIndex =
-    event.key === "Home"
-      ? 0
-      : event.key === "End"
-        ? items.length - 1
-        : (Math.max(0, currentIndex) + direction + items.length) % items.length;
-  event.preventDefault();
-  event.stopPropagation();
-  items[nextIndex]?.focus();
-}
-
 function tagLabel(index: EvolutionIndex, id: EntityId): string {
   return index.tagById.get(id)?.label ?? id;
 }
 
-function workLabel(index: EvolutionIndex, id: EntityId): string {
-  return index.domain.workById.get(id)?.label ?? id;
-}
-
-function stationAnnotation(
-  index: EvolutionIndex,
-  station: MetroStation,
-  fallbackTitle: string,
-): { title: string; metadata: string } {
-  const representedCount = aggregateStationRepresentedWorkCount(station.entry);
-  const representativeId = station.entry.hierarchyParentId ?? station.entry.workIds[0];
-  const representative = representativeId
-    ? index.domain.workById.get(representativeId)
-    : null;
-  const contributor = representative?.contributors.find(
-    (candidate) => candidate.importance === "primary",
-  ) ?? representative?.contributors[0];
-  const metadata = [
-    station.entry.temporal.displayLabel,
-    representedCount > 1
-      ? aggregateCountLabel(station.entry)
-      : representative
-        ? humanize(representative.medium)
-        : null,
-    contributor?.creditedAs ?? contributor?.label ?? null,
-  ].filter((value): value is string => Boolean(value));
-  return {
-    title: representative?.label ?? fallbackTitle,
-    metadata: metadata.join(" · "),
-  };
-}
-
-function aggregateCountLabel(station: AggregateStation): string {
-  const count = aggregateStationRepresentedWorkCount(station);
-  const noun = station.membershipType === "track_of"
-    ? "track"
-    : station.membershipType === "episode_of"
-      ? "episode"
-      : station.membershipType === "season_of"
-        ? "season"
-        : station.membershipType === "chapter_of"
-          ? "chapter"
-          : station.membershipType === "volume_of"
-            ? "volume"
-            : station.membershipType === "issue_of"
-              ? "issue"
-              : station.membershipType === "part_of"
-                ? "part"
-                : "work";
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
-}
-
-function dateQualityLabel(station: MetroStation): string {
-  const temporal = station.entry.temporal;
-  if (temporal.quality === "ambiguous") return "Ambiguous date";
-  if (temporal.quality === "year-only") return "Year-only date";
-  return temporal.precision === "month" ? "Month-level date" : "Exact date";
-}
-
-function truncatedLabel(value: string, limit = 30): string {
-  return value.length > limit ? `${value.slice(0, limit - 1)}…` : value;
-}
-
 function strengthValueLabel(strength: number | null): string {
   return strength === null ? "unknown strength" : `${Math.round(strength * 100)}% normalized`;
-}
-
-function strengthChangeLabel(change: number | null, first: boolean): string {
-  if (first) return "route start";
-  if (change === null) return "change unknown";
-  const points = Math.round(change * 100);
-  if (points === 0) return "no change";
-  return `${points > 0 ? "+" : ""}${points} percentage points`;
 }
 
 function rawStrengthValuesLabel(values: readonly number[]): string {
@@ -315,102 +197,6 @@ function provenanceGroupKey(reason: ReachReason): string {
   ]);
 }
 
-function reasonField(reason: ReachReason, name: string): string | null {
-  const value = (reason as unknown as Record<string, unknown>)[name];
-  return typeof value === "string" && value ? value : null;
-}
-
-function reachReasonLabel(reason: ReachReason, index: EvolutionIndex): string {
-  const seedId = reasonField(reason, "seedTagId");
-  const seed = seedId ? tagLabel(index, seedId) : "a seed trajectory";
-  const tagId =
-    reasonField(reason, "viaTagId") ?? reasonField(reason, "tagId");
-  const direction = reasonField(reason, "direction");
-  const sourceStation =
-    reasonField(reason, "fromStationId") ??
-    reasonField(reason, "sourceStationId") ??
-    reasonField(reason, "stopId");
-  const sourceWork = reasonField(reason, "fromWorkId");
-  const context = "context" in reason ? reason.context : undefined;
-  const connectedSuffix = context
-    ? ` Connected path used ${context.earlierUsed} earlier and ${context.laterUsed} later steps${context.path.length ? ` (${context.path.map((step) => step.direction).join(" → ")})` : ""}.`
-    : "";
-  switch (reason.kind) {
-    case "seed-tag":
-      return `${seed} is a selected seed trajectory.`;
-    case "seed-membership":
-      return `Seed ${seed} directly includes this ${tagId ? `membership on ${tagLabel(index, tagId)}` : "stop"}.`;
-    case "shared-work":
-      return `Seed ${seed} reached ${tagId ? tagLabel(index, tagId) : "this tag"} through ${sourceWork ? workLabel(index, sourceWork) : "a shared stop"}.${connectedSuffix}`;
-    case "temporal-neighbor":
-      return `From seed ${seed}: nearest ${direction ?? "directional"} stop on ${tagId ? tagLabel(index, tagId) : "the traversed tag"}${sourceWork ? ` from ${workLabel(index, sourceWork)}` : sourceStation ? ` from stop ${sourceStation}` : ""}.${connectedSuffix}`;
-    case "visible-interchange":
-      return `Seed ${seed} reaches ${tagId ? tagLabel(index, tagId) : "another visible tag"} at this interchange.${connectedSuffix}`;
-    default:
-      return `${humanize(String((reason as { kind: string }).kind))} from ${seed}.`;
-  }
-}
-
-function reachReasonPathLabels(
-  reason: ReachReason,
-  index: EvolutionIndex,
-  scene: ReturnType<typeof buildTimeNetScene>,
-): string[] {
-  if (!("context" in reason) || !reason.context?.path.length) return [];
-  let earlierUsed = 0;
-  let laterUsed = 0;
-  const stationLabel = (stationId: string | undefined, temporalGroupId: string) => {
-    if (!stationId) return temporalGroupId;
-    const station = scene.stationById.get(stationId);
-    if (!station) return `${stationId} (${temporalGroupId})`;
-    const contents = aggregateStationRepresentedWorkCount(station.entry) === 1
-      ? workLabel(index, station.entry.workIds[0]!)
-      : aggregateCountLabel(station.entry);
-    return `${station.entry.temporal.displayLabel} · ${contents} [${stationId}]`;
-  };
-  return reason.context.path.map((step, position) => {
-    if (step.direction === "earlier") earlierUsed += 1;
-    else laterUsed += 1;
-    return `${position + 1}. ${tagLabel(index, step.tagId)} [${step.tagId}] · ${step.direction}: ${stationLabel(step.sourceStationId, step.sourceTemporalGroupId)} → ${stationLabel(step.targetStationId, step.targetTemporalGroupId)} · budgets Earlier ${earlierUsed}, Later ${laterUsed}`;
-  });
-}
-
-type ReachDisplay = Pick<
-  DirectionalReachInfo,
-  "depth" | "seedDepth" | "earlierDepth" | "laterDepth"
->;
-
-function effectiveDepth(reach: ReachDisplay): number {
-  if (reach.seedDepth === 0) return 0;
-  return Math.min(
-    reach.earlierDepth ?? Number.POSITIVE_INFINITY,
-    reach.laterDepth ?? Number.POSITIVE_INFINITY,
-    Number.isFinite(reach.depth) ? reach.depth : Number.POSITIVE_INFINITY,
-  );
-}
-
-function depthClass(reach: ReachDisplay): string {
-  const depth = effectiveDepth(reach);
-  return `depth-${Math.min(4, Math.max(0, Number.isFinite(depth) ? depth : 4))}`;
-}
-
-function directionClass(reach: ReachDisplay): string {
-  if (reach.seedDepth === 0) return "direction-seed";
-  if (reach.earlierDepth !== null && reach.laterDepth !== null) {
-    return "direction-both";
-  }
-  if (reach.earlierDepth !== null) return "direction-earlier";
-  if (reach.laterDepth !== null) return "direction-later";
-  return "direction-context";
-}
-
-function reachSummary(reach: ReachDisplay): string {
-  if (reach.seedDepth === 0) return "Seed trajectory · depth 0";
-  const parts: string[] = [];
-  if (reach.earlierDepth !== null) parts.push(`earlier ${reach.earlierDepth}`);
-  if (reach.laterDepth !== null) parts.push(`later ${reach.laterDepth}`);
-  return parts.length ? parts.join(" · ") : "Visible context";
-}
 
 /** Count group-deduplicated traversal states that actually contain a station. */
 export function connectedContextStateCountForStation(
@@ -430,43 +216,6 @@ export function connectedContextStateCountForStation(
 export const MAX_UNSELECTED_TRAJECTORY_WIDTH =
   MAX_TRAJECTORY_SEGMENT_WIDTH;
 
-export interface EvolutionStationMarkerGeometry {
-  coreRadius: number;
-  structuralRadius: number;
-  knockoutRadius: number;
-  dateHaloRadius: number;
-  hitRadius: number;
-}
-
-/** Shared sun-marker geometry for single-work, aggregate, and interchange stops. */
-export function evolutionStationMarkerGeometry({
-  aggregate,
-  interchange,
-  workCount,
-}: {
-  aggregate: boolean;
-  interchange: boolean;
-  workCount: number;
-}): EvolutionStationMarkerGeometry {
-  const aggregateGrowth = Math.min(
-    5,
-    Math.log2(Math.max(2, workCount)) * 1.25,
-  );
-  const coreRadius = aggregate
-    ? Math.max(
-        8.5 + aggregateGrowth,
-        7 + String(Math.max(1, workCount)).length * 1.5,
-      )
-    : 6;
-  const structuralRadius = coreRadius + (interchange ? (aggregate ? 4 : 3.75) : 0);
-  return {
-    coreRadius,
-    structuralRadius,
-    knockoutRadius: structuralRadius + 2.6,
-    dateHaloRadius: structuralRadius + 4.4,
-    hitRadius: Math.max(13, structuralRadius + 5.5),
-  };
-}
 
 /** Reuse base geometry while recomputing metadata for an overlay-split group. */
 export function evolutionRenderGroupFallback(
@@ -608,14 +357,6 @@ export function evolutionInteractionLookup(
   };
 }
 
-export function shouldRenderTemporalRegion(
-  bucket: Pick<MetroBucket, "interval" | "ambiguous" | "temporal">,
-): boolean {
-  return (
-    bucket.temporal.precision !== "day" &&
-    (bucket.interval || bucket.ambiguous)
-  );
-}
 
 function groupStationProvenance(
   station: AggregateStation,
@@ -1561,999 +1302,118 @@ export function EvolutionView({
             onResetView={resetView}
             onZoomChange={setZoom}
           />
-          <div className="metro-chart-shell">
-            {!seedTagIds.length ? (
-              <div className="metro-empty">
-                <h3>Choose at least one seed tag</h3>
-                <p>The selected tag trajectories and their accepted temporal stops will appear here.</p>
-              </div>
-            ) : !scene.stations.length ? (
-              <div className="metro-empty">
-                <h3>No accepted stations</h3>
-                <p>Adjust the date-quality filters or choose another seed tag.</p>
-              </div>
-            ) : (
-              <div className="metro-scroll">
-              <svg
-                className="metro-canvas"
-                width={scene.width * zoom}
-                height={scene.height * zoom}
-                viewBox={`0 0 ${scene.width} ${scene.height}`}
-                preserveAspectRatio="xMinYMin meet"
-                role="group"
-                aria-labelledby={`${titleId} ${descriptionId}`}
-                onClick={() => {
-                  setSelection(null);
-                  setIsolatedTagId(null);
-                }}
-              >
-                <title id={titleId}>Tag-centered historical Evolution map</title>
-                <desc id={descriptionId}>
-                  Variable-width tag trajectories and equivalent-tag bundles pass through
-                  dated work, interchange, and aggregate stations. Independent earlier and later
-                  budgets add directional or connected context. Horizontal order is chronological,
-                  while distance does not encode duration. Explicit work relations remain a separate
-                  arrow layer. Arrow keys move among items; Enter or Space creates persistent focus.
-                </desc>
-                <defs>
-                  <marker
-                    id="metro-explicit-arrow"
-                    viewBox="0 0 10 10"
-                    refX="8"
-                    refY="5"
-                    markerWidth="5"
-                    markerHeight="5"
-                    orient="auto-start-reverse"
-                  >
-                    <path d="M 0 0 L 10 5 L 0 10 z" />
-                  </marker>
-                </defs>
-
-                <g className="metro-axis-layer" aria-hidden="true">
-                  <line
-                    x1={0}
-                    x2={scene.width}
-                    y1={64}
-                    y2={64}
-                    className="evolution-axis-rule"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                  {scene.years.map((year, index) => (
-                    <g key={year.year}>
-                      <rect
-                        x={year.xStart}
-                        y={94}
-                        width={year.xEnd - year.xStart}
-                        height={scene.height - 122}
-                        className={[
-                          "metro-year-band",
-                          index % 2 === 0 ? "alternate" : "",
-                          year.hasYearInterval ? "has-interval" : "",
-                          year.hasAmbiguity ? "has-ambiguity" : "",
-                        ].filter(Boolean).join(" ")}
-                      />
-                      <line
-                        x1={year.xStart}
-                        x2={year.xStart}
-                        y1={53}
-                        y2={scene.height - 28}
-                        className="metro-year-tick"
-                        vectorEffect="non-scaling-stroke"
-                      />
-                      <text
-                        x={(year.xStart + year.xEnd) / 2}
-                        y={43}
-                        textAnchor="middle"
-                        className={[
-                          "metro-year-label",
-                          scene.bucketById.get(
-                            presentation.selection?.temporalBucket?.id ?? "",
-                          )?.temporal.year === year.year
-                            ? "selected"
-                            : "",
-                        ].filter(Boolean).join(" ")}
-                      >
-                        {year.year}
-                      </text>
-                      {year.hasYearInterval ? (
-                        <path
-                          d={`M ${year.contentStart} 57 L ${year.contentStart} 64 L ${year.contentEnd} 64 L ${year.contentEnd} 57`}
-                          className="metro-year-interval-bracket"
-                        />
-                      ) : null}
-                    </g>
-                  ))}
-                  {scene.buckets
-                    .filter(shouldRenderTemporalRegion)
-                    .map((bucket) => {
-                      const emphasis = bucketEmphasis(bucket.id);
-                      return (
-                        <rect
-                          key={`bucket:${bucket.id}`}
-                          x={bucket.xStart}
-                          y={88}
-                          width={Math.max(2, bucket.xEnd - bucket.xStart)}
-                          height={scene.height - 112}
-                          data-temporal-region={bucket.temporal.precision}
-                          className={[
-                            "metro-bucket",
-                            bucket.temporal.precision === "month" ? "month-interval" : "year-only",
-                            bucket.ambiguous ? "ambiguous" : "",
-                            emphasis ?? "",
-                          ].filter(Boolean).join(" ")}
-                        />
-                      );
-                    })}
-                  {scene.buckets
-                    .filter((bucket) => !bucket.interval && bucketEmphasis(bucket.id))
-                    .map((bucket) => {
-                      const emphasis = bucketEmphasis(bucket.id)!;
-                      return (
-                        <path
-                          key={`cue:${bucket.id}`}
-                          d={`M ${bucket.x - 5} 87 L ${bucket.x - 5} 82 L ${bucket.x + 5} 82 L ${bucket.x + 5} 87`}
-                          data-exact-bucket-cue="true"
-                          className={`metro-bucket-axis-cue ${emphasis}`}
-                        />
-                      );
-                    })}
-                  {scene.dateLabels.map((label) => (
-                    <text key={label.key} x={label.x} y={80} textAnchor="middle" className="metro-date-label">
-                      {label.text}
-                    </text>
-                  ))}
-                  <text x={96} y={20} className="metro-axis-title">
-                    ADAPTIVE TEMPORAL ORDER · COMPRESSED GAPS
-                  </text>
-                </g>
-
-                <g className="metro-trajectory-layer">
-                  {renderTrajectoryGroups.map((group) => {
-                    const representative = scene.trajectoryById.get(group.tagIds[0]!)!;
-                    const entry = representative.entry;
-                    const target: EvolutionInteractionTarget = group.kind === "bundle"
-                      ? { kind: "bundle", id: group.id }
-                      : { kind: "tag", id: group.tagIds[0]! };
-                    const interaction = interactionClasses(target.kind, target.id);
-                    const style = {
-                      "--tag-color": group.kind === "bundle" ? "#aeb9bb" : group.color,
-                    } as CSSProperties;
-                    const label = group.kind === "bundle"
-                      ? `${group.tagIds.length} tags`
-                      : entry.tag.label;
-                    return (
-                      <g
-                        key={group.id}
-                        className={[
-                          "metro-trajectory",
-                          group.kind === "bundle" ? "trajectory-bundle" : "trajectory-singleton",
-                          group.reach.seed ? "seed" : "context-line",
-                          depthClass(group.reach),
-                          directionClass(group.reach),
-                          ...interaction,
-                        ].filter(Boolean).join(" ")}
-                        style={style}
-                        role="button"
-                        tabIndex={sameEvolutionInteraction(rovingFocusTarget, target) ? 0 : -1}
-                        data-metro-interactive="true"
-                        data-trajectory-kind={group.kind}
-                        aria-pressed={sameEvolutionInteraction(selection, target)}
-                        aria-controls={detailsId}
-                        aria-describedby={sameEvolutionInteraction(hover, target) ? tooltipId : undefined}
-                        aria-label={group.kind === "bundle"
-                          ? `${group.tagIds.length} bundled tags, ${reachSummary(group.reach)}, ${group.stationIds.length} shared aggregate stops`
-                          : `${entry.tag.label}, ${reachSummary(entry)}, ${group.stationIds.length} aggregate stops`}
-                        onPointerEnter={(event: PointerEvent<SVGGElement>) => previewTarget(target, event.currentTarget)}
-                        onPointerLeave={() => stopPreview(target)}
-                        onFocus={(event) => {
-                          setFocusTarget(target);
-                          previewTarget(target, event.currentTarget, true);
-                        }}
-                        onBlur={() => stopPreview(target)}
-                        onClick={(event: MouseEvent<SVGGElement>) => {
-                          event.stopPropagation();
-                          selectTarget(target);
-                        }}
-                        onKeyDown={(event) => activateOnKeyboard(event, () => selectTarget(target))}
-                      >
-                        {group.segments.map((segment) => (
-                          <path
-                            key={segment.key}
-                            d={segment.ribbonPath}
-                            className="metro-line-visible metro-line-ribbon metro-strength-segment"
-                            data-strength={segment.displayStrength ?? "unknown"}
-                            style={{ "--segment-width": `${segment.width}px` } as CSSProperties}
-                            vectorEffect="non-scaling-stroke"
-                          />
-                        ))}
-                        {group.stationPorts.map((port) => {
-                          const station = scene.stationById.get(port.stationId)!;
-                          const strengths = group.tagIds
-                            .map((tagId) => visible.aggregateMembershipsByTagId
-                              .get(tagId)
-                              ?.find((membership) => membership.stationId === station.id)
-                              ?.strength ?? null)
-                            .filter((strength): strength is number => strength !== null);
-                          const strength = strengths.length ? Math.max(...strengths) : null;
-                          const path = [
-                            `M ${port.left.x} ${port.left.y}`,
-                            `C ${station.x - 3} ${port.left.y}, ${station.x - 3} ${station.y}, ${station.x} ${station.y}`,
-                            `C ${station.x + 3} ${station.y}, ${station.x + 3} ${port.right.y}, ${port.right.x} ${port.right.y}`,
-                          ].join(" ");
-                          return (
-                            <path
-                              key={`port-route:${group.id}:${station.id}`}
-                              d={path}
-                              className="metro-line-visible metro-station-port-route"
-                              data-strength={strength ?? "unknown"}
-                              style={{ "--segment-width": `${trajectorySegmentWidth(strength)}px` } as CSSProperties}
-                              vectorEffect="non-scaling-stroke"
-                            />
-                          );
-                        })}
-                        <path d={group.path} className="metro-line-hit" vectorEffect="non-scaling-stroke" />
-                        <text x={representative.origin.x} y={representative.laneY - 10} className="metro-tag-label">
-                          <tspan className="metro-tag-label-title">{truncatedLabel(label)}</tspan>
-                          <tspan className="metro-tag-label-meta">
-                            {group.kind === "bundle"
-                              ? " · bundle"
-                              : ` · ${humanize(entry.tag.conceptType)}${entry.seed ? " · seed" : ""}`}
-                          </tspan>
-                        </text>
-                        {group.kind === "bundle" ? (
-                          <g className="metro-bundle-count" transform={`translate(${representative.origin.x + 7} ${representative.laneY + 4})`}>
-                            <circle r={6.5} />
-                            <text y={2.3}>{group.tagIds.length}</text>
-                          </g>
-                        ) : null}
-                        {!group.reach.seed && group.reach.earlierDepth !== null && group.reach.laterDepth === null ? (
-                          <text x={representative.origin.x - 2} y={representative.laneY + 4} className="metro-direction-marker">←</text>
-                        ) : null}
-                        {!group.reach.seed && group.reach.laterDepth !== null && group.reach.earlierDepth === null ? (
-                          <text x={representative.end.x + 5} y={representative.end.y + 4} className="metro-direction-marker">→</text>
-                        ) : null}
-                      </g>
-                    );
-                  })}
-                </g>
-
-                <g className="metro-explicit-layer">
-                  {scene.explicitRelations.map((entry: MetroExplicitRelation) => {
-                    const target = { kind: "relation" as const, id: entry.key };
-                    const conflicts = entry.relation.relations.filter((relation) => relation.chronologyConflict).length;
-                    return (
-                      <g
-                        key={entry.key}
-                        className={[
-                          "metro-explicit-relation",
-                          conflicts ? "chronology-conflict" : "",
-                          entry.relation.relations.length > 1 ? "aggregate-relation" : "",
-                          ...interactionClasses("relation", entry.key),
-                        ].filter(Boolean).join(" ")}
-                        role="button"
-                        tabIndex={sameEvolutionInteraction(rovingFocusTarget, target) ? 0 : -1}
-                        data-metro-interactive="true"
-                        aria-pressed={sameEvolutionInteraction(selection, target)}
-                        aria-controls={detailsId}
-                        aria-describedby={sameEvolutionInteraction(hover, target) ? tooltipId : undefined}
-                        aria-label={`${entry.relation.relations.length} explicit ${entry.relation.relations.length === 1 ? "relation" : "relations"}, ${entry.relation.relationTypes.map(humanize).join(", ")}${conflicts ? `, ${conflicts} chronology conflicts` : ""}`}
-                        onPointerEnter={(event: PointerEvent<SVGGElement>) => previewTarget(target, event.currentTarget)}
-                        onPointerLeave={() => stopPreview(target)}
-                        onFocus={(event) => {
-                          setFocusTarget(target);
-                          previewTarget(target, event.currentTarget, true);
-                        }}
-                        onBlur={() => stopPreview(target)}
-                        onClick={(event: MouseEvent<SVGGElement>) => {
-                          event.stopPropagation();
-                          selectTarget(target);
-                        }}
-                        onKeyDown={(event) => activateOnKeyboard(event, () => selectTarget(target))}
-                      >
-                        <path d={entry.path} className="metro-relation-visible" markerEnd="url(#metro-explicit-arrow)" vectorEffect="non-scaling-stroke" />
-                        <path d={entry.path} className="metro-relation-hit" vectorEffect="non-scaling-stroke" />
-                        {entry.relation.relations.length > 1 ? (
-                          <g transform={`translate(${(entry.source.x + entry.target.x) / 2} ${(entry.source.y + entry.target.y) / 2 - 7})`} className="metro-relation-count">
-                            <circle r={7} />
-                            <text y={2.5}>{entry.relation.relations.length}</text>
-                          </g>
-                        ) : null}
-                      </g>
-                    );
-                  })}
-                </g>
-
-                <g className="metro-station-layer">
-                  {scene.stations.map((station) => {
-                    const target = { kind: "station" as const, id: station.id };
-                    const marker = evolutionStationMarkerGeometry({
-                      aggregate: station.aggregate,
-                      interchange: station.interchange,
-                      workCount: aggregateStationRepresentedWorkCount(station.entry),
-                    });
-                    const ambiguousHalfSize = marker.dateHaloRadius / Math.SQRT2;
-                    const interchangeYValues = station.ports.flatMap((port) => [
-                      port.left.y - station.y,
-                      port.right.y - station.y,
-                    ]);
-                    const interchangeTop = Math.min(
-                      -marker.structuralRadius,
-                      ...(interchangeYValues.length ? interchangeYValues : [0]),
-                    ) - 2;
-                    const interchangeBottom = Math.max(
-                      marker.structuralRadius,
-                      ...(interchangeYValues.length ? interchangeYValues : [0]),
-                    ) + 2;
-                    const aggregateWidth = Math.max(18, marker.coreRadius * 2.5);
-                    const stationColor = station.visibleTagIds
-                      .map((tagId) => scene.trajectoryById.get(tagId)?.color)
-                      .find((color): color is string => Boolean(color)) ?? "#cfd7d6";
-                    return (
-                      <g
-                        key={station.id}
-                        transform={`translate(${station.x} ${station.y})`}
-                        style={{ "--station-color": stationColor } as CSSProperties}
-                        className={[
-                          "metro-station",
-                          station.interchange ? "interchange" : "",
-                          station.aggregate ? "aggregate" : "single-work",
-                          station.entry.temporal.quality,
-                          station.entry.temporal.precision,
-                          depthClass(station.entry),
-                          directionClass(station.entry),
-                          ...interactionClasses("station", station.id),
-                        ].filter(Boolean).join(" ")}
-                        role="button"
-                        tabIndex={sameEvolutionInteraction(rovingFocusTarget, target) ? 0 : -1}
-                        data-metro-interactive="true"
-                        aria-pressed={sameEvolutionInteraction(selection, target)}
-                        aria-controls={detailsId}
-                        aria-describedby={sameEvolutionInteraction(hover, target) ? tooltipId : undefined}
-                        aria-label={`${aggregateCountLabel(station.entry)}, ${station.entry.temporal.displayLabel}, ${dateQualityLabel(station)}, ${reachSummary(station.entry)}, ${station.visibleTagIds.length} visible tags${station.interchange ? ", interchange" : ""}`}
-                        onPointerEnter={(event: PointerEvent<SVGGElement>) => previewTarget(target, event.currentTarget)}
-                        onPointerLeave={() => stopPreview(target)}
-                        onFocus={(event) => {
-                          setFocusTarget(target);
-                          previewTarget(target, event.currentTarget, true);
-                        }}
-                        onBlur={() => stopPreview(target)}
-                        onClick={(event: MouseEvent<SVGGElement>) => {
-                          event.stopPropagation();
-                          selectTarget(target);
-                        }}
-                        onDoubleClick={(event) => {
-                          event.stopPropagation();
-                          if (aggregateStationRepresentedWorkCount(station.entry) === 1) {
-                            onOpen(station.entry.workIds[0]!);
-                          }
-                        }}
-                        onKeyDown={(event) => activateOnKeyboard(event, () => selectTarget(target))}
-                      >
-                        <circle r={marker.hitRadius} className="metro-station-hit" />
-                        <circle
-                          r={marker.knockoutRadius}
-                          className="metro-station-knockout"
-                          data-station-knockout="true"
-                        />
-                        <g className="metro-station-visible">
-                          {station.entry.temporal.quality === "year-only" ? <circle r={marker.dateHaloRadius} className="metro-station-halo year" /> : null}
-                          {station.entry.temporal.precision === "month" && station.entry.temporal.quality !== "ambiguous" ? <circle r={marker.dateHaloRadius} className="metro-station-halo month" /> : null}
-                          {station.entry.temporal.quality === "ambiguous" ? (
-                            <rect x={-ambiguousHalfSize} y={-ambiguousHalfSize} width={ambiguousHalfSize * 2} height={ambiguousHalfSize * 2} className="metro-station-halo ambiguous" transform="rotate(45)" />
-                          ) : null}
-                          {station.aggregate ? (
-                            <rect
-                              x={-aggregateWidth / 2}
-                              y={-5.5}
-                              width={aggregateWidth}
-                              height={11}
-                              rx={5.5}
-                              className="metro-aggregate-ring metro-aggregate-glyph"
-                            />
-                          ) : (
-                            <circle r={marker.coreRadius} className="metro-station-core metro-single-station-ring" />
-                          )}
-                          {station.interchange ? (
-                            <rect
-                              x={-4.5}
-                              y={interchangeTop}
-                              width={9}
-                              height={interchangeBottom - interchangeTop}
-                              rx={4.5}
-                              className="metro-interchange-ring metro-interchange-cap"
-                            />
-                          ) : null}
-                          {station.aggregate ? (
-                            <text y={2.5} className="metro-aggregate-count">{aggregateStationRepresentedWorkCount(station.entry)}</text>
-                          ) : (
-                            <circle r={1.45} className="metro-station-center" />
-                          )}
-                        </g>
-                      </g>
-                    );
-                  })}
-                </g>
-
-                <g className="metro-work-label-layer" aria-hidden="true">
-                  {scene.workLabels.map((label) => {
-                    const station = scene.stationById.get(label.stationId);
-                    if (!station) return null;
-                    const annotation = stationAnnotation(index, station, label.text);
-                    const anchor = label.x >= station.x ? "start" : "end";
-                    const x = anchor === "start" ? label.x : label.x + label.width;
-                    const selected = sameEvolutionInteraction(selection, {
-                      kind: "station",
-                      id: station.id,
-                    });
-                    return (
-                      <g
-                        key={label.key}
-                        className={[
-                          "metro-work-label",
-                          station.aggregate ? "aggregate" : "",
-                          selected ? "selected" : "",
-                        ].filter(Boolean).join(" ")}
-                        transform={`translate(${x} ${label.y})`}
-                        data-label-anchor={anchor}
-                      >
-                        {selected ? (
-                          <rect
-                            x={anchor === "start" ? -5 : -label.width - 5}
-                            y={-13}
-                            width={label.width + 10}
-                            height={29}
-                            rx={4}
-                            className="metro-work-label-backdrop"
-                          />
-                        ) : null}
-                        <text textAnchor={anchor} className="metro-work-label-title">
-                          {truncatedLabel(annotation.title, 32)}
-                        </text>
-                        <text y={11} textAnchor={anchor} className="metro-work-label-meta">
-                          {truncatedLabel(annotation.metadata, 46)}
-                        </text>
-                      </g>
-                    );
-                  })}
-                </g>
-
-              </svg>
-            </div>
-            )}
-          </div>
+          <EvolutionCanvas
+            scene={scene}
+            visible={visible}
+            index={index}
+            renderTrajectoryGroups={renderTrajectoryGroups}
+            hasSeedTags={Boolean(seedTagIds.length)}
+            zoom={zoom}
+            titleId={titleId}
+            descriptionId={descriptionId}
+            detailsId={detailsId}
+            tooltipId={tooltipId}
+            selection={selection}
+            hover={hover}
+            rovingFocusTarget={rovingFocusTarget}
+            selectedTemporalBucketId={presentation.selection?.temporalBucket?.id ?? null}
+            bucketEmphasis={bucketEmphasis}
+            interactionClasses={interactionClasses}
+            onClearSelection={() => {
+              setSelection(null);
+              setIsolatedTagId(null);
+            }}
+            onPreviewTarget={previewTarget}
+            onStopPreview={stopPreview}
+            onFocusTarget={setFocusTarget}
+            onSelectTarget={selectTarget}
+            onOpen={onOpen}
+          />
           <EvolutionLegend
             trajectories={legendTrajectories}
             hiddenCount={trajectorySelection.hiddenCount}
           />
         </div>
 
-        {!inspectorOpen ? (
-          <button
-            type="button"
-            className="metro-inspector-restore"
-            aria-controls={detailsId}
-            aria-expanded="false"
-            onClick={() => setInspectorOpen(true)}
-          >
-            Show inspector
-          </button>
-        ) : null}
-
-        <aside
-          ref={detailsPanelRef}
-          id={detailsId}
-          className="metro-details"
-          data-details-kind={selectedTarget?.kind ?? "none"}
-          aria-live="polite"
-          hidden={!inspectorOpen}
-          tabIndex={-1}
-        >
-          <header className="metro-details-header">
-            <button
-              type="button"
-              className="metro-details-collapse"
-              aria-label="Collapse inspector"
-              aria-controls={detailsId}
-              aria-expanded={inspectorOpen}
-              onClick={() => setInspectorOpen(false)}
-            >
-              ‹ <span>collapse</span>
-            </button>
-            <span className="metro-details-id" title={inspectorIdentity}>{inspectorIdentity}</span>
-            <button
-              type="button"
-              className="metro-details-close"
-              aria-label="Clear Evolution selection"
-              disabled={!selectedTarget}
-              onClick={clearDetailsTarget}
-            >
-              ×
-            </button>
-          </header>
-          <div className="metro-details-content">
-            {selectedTag ? (
-            <>
-              <span className="metro-details-kicker">Tag trajectory</span>
-              <h3>{selectedTag.tag.label}</h3>
-              <p>{humanize(selectedTag.tag.conceptType)} · {reachSummary(selectedTag)}</p>
-              <div className="metro-tag-rating">
-                <span>
-                  Your rating: {ratings[selectedTag.tag.id] === 1
-                    ? "+"
-                    : ratings[selectedTag.tag.id] === -1
-                      ? "−"
-                      : "Unrated"}
-                </span>
-                <EntityRatingButtons
-                  id={selectedTag.tag.id}
-                  label={selectedTag.tag.label}
-                  ratings={ratings}
-                  onRate={onRate}
-                />
-              </div>
-              {showInferredPreference && selectedInferredPreference ? (
-                <div className="metro-inferred-preference">
-                  <strong>
-                    Inferred preference: {selectedInferredPreference.score >= 0 ? "+" : ""}
-                    {selectedInferredPreference.score.toFixed(2)}
-                  </strong>
-                  <span>
-                    Derived from {selectedInferredPreference.evidence.length} rated work/agent
-                    {selectedInferredPreference.evidence.length === 1 ? "" : "s"}; it does not change your explicit rating.
-                  </span>
-                  <ul>
-                    {selectedInferredPreference.evidence.slice(0, 3).map((evidence) => (
-                      <li key={`${evidence.family}:${evidence.entityId}`}>
-                        {evidence.rating === 1 ? "+" : "−"} {evidence.label}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-              <dl>
-                <div><dt>Aggregate stops</dt><dd>{selectedTag.stationIds.length}</dd></div>
-                <div><dt>Contained works</dt><dd>{selectedTag.workIds.length}</dd></div>
-                <div><dt>First / last</dt><dd>{selectedTag.firstTemporal.displayLabel} → {selectedTag.lastTemporal.displayLabel}</dd></div>
-                <div><dt>Origin targets</dt><dd>{selectedTag.origin.targetStationIds.length}</dd></div>
-              </dl>
-              <h4>Strength by visible stop</h4>
-              <ul className="metro-strength-profile">
-                {selectedTagStrengthProfile.map((entry) => (
-                  <li key={entry.stationId}>
-                    <button type="button" onClick={() => selectDetailsTarget({ kind: "station", id: entry.stationId })}>
-                      <span>{entry.label}</span>
-                      <small>
-                        {tagStrengthBand(entry.strength)} · {strengthValueLabel(entry.strength)} · {rawStrengthValuesLabel(entry.rawStrengths)} · {strengthChangeLabel(entry.change, entry.first)}
-                      </small>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <h4>{expansionMode === "connected" ? "Connected-context provenance" : "Directional provenance"}</h4>
-              <ul>
-                {selectedTag.reasons.map((reason) => (
-                  <li key={reasonKey(reason)}>
-                    <span>{reachReasonLabel(reason, index)}</span>
-                    {reachReasonPathLabels(reason, index, scene).length ? (
-                      <ol className="metro-provenance-path">
-                        {reachReasonPathLabels(reason, index, scene).map((step) => (
-                          <li key={step}>{step}</li>
-                        ))}
-                      </ol>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-              <div className="metro-details-actions">
-                {!selectedTag.seed ? <button type="button" onClick={() => addSeed(selectedTag.tag.id)}>Add as seed</button> : null}
-                <button
-                  type="button"
-                  onClick={() => setPinnedTagIds((current) =>
-                    current.includes(selectedTag.tag.id)
-                      ? current.filter((tagId) => tagId !== selectedTag.tag.id)
-                      : [...current, selectedTag.tag.id].sort()
-                  )}
-                >
-                  {pinnedTagIds.includes(selectedTag.tag.id)
-                    ? "Unpin trajectory"
-                    : "Pin trajectory"}
-                </button>
-                <button type="button" onClick={() => {
-                  focusDetailsAfterUpdate.current = true;
-                  addExclusion(selectedTag.tag.id);
-                }}>Exclude tag</button>
-                <button type="button" onClick={clearDetailsTarget}>Clear focus</button>
-              </div>
-            </>
-          ) : selectedBundle ? (
-            <>
-              <span className="metro-details-kicker">Trajectory bundle</span>
-              <h3>{selectedBundle.tagIds.length} equivalent tags</h3>
-              <p>{BUNDLE_EQUIVALENCE_REASON}.</p>
-              <dl>
-                <div><dt>Unique tags</dt><dd>{selectedBundle.tagIds.length}</dd></div>
-                <div><dt>Shared stops</dt><dd>{selectedBundle.stationIds.length}</dd></div>
-                <div><dt>Segments</dt><dd>{selectedBundle.segments.length}</dd></div>
-                <div><dt>Bundle state</dt><dd>Collapsed</dd></div>
-              </dl>
-              <h4>Unique bundled tags</h4>
-              <div className="metro-unique-tag-list">
-                {selectedBundleTagGroups.map((group) => (
-                  <details key={group.normalizedLabel} open={group.conceptRecordCount === 1}>
-                    <summary>
-                      <span>{group.label}</span>
-                      <small>
-                        {group.conceptRecordCount > 1 ? `${group.conceptRecordCount} concept records · ` : ""}
-                        strongest {strengthValueLabel(group.strongestStrength)}
-                      </small>
-                    </summary>
-                    <div>
-                      {group.tagIds.map((tagId) => {
-                        const entry = selectedBundle.entries.find((candidate) => candidate.tagId === tagId)!;
-                        return (
-                          <button type="button" key={tagId} onClick={() => selectDetailsTarget({ kind: "tag", id: tagId })}>
-                            <span>Isolate {tagLabel(index, tagId)}</span>
-                            <small>
-                              {tagId} · normalized {entry.strengthProfile.map(strengthValueLabel).join(" → ")} · {entry.stationIds.map((stationId) => rawStrengthValuesLabel(rawMembershipStrengths(visible, tagId, stationId))).join(" → ")} · {BUNDLE_EQUIVALENCE_REASON}
-                            </small>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </details>
-                ))}
-              </div>
-              <h4>Shared route</h4>
-              <ol className="metro-bundle-route">
-                {selectedBundleRouteStationIds.map((stationId) => (
-                  <li key={stationId}>
-                    <button type="button" onClick={() => selectDetailsTarget({ kind: "station", id: stationId })}>
-                      {scene.stationById.get(stationId)?.entry.temporal.displayLabel ?? stationId}
-                    </button>
-                  </li>
-                ))}
-              </ol>
-              <div className="metro-details-actions">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setExplicitExpandedTagIds((current) => [
-                      ...new Set([...current, ...selectedBundle.tagIds]),
-                    ].sort());
-                    focusDetailsAfterUpdate.current = true;
-                    setIsolatedTagId(null);
-                    setSelection(null);
-                  }}
-                >
-                  Expand bundled tags
-                </button>
-                <button type="button" onClick={clearDetailsTarget}>Clear focus</button>
-              </div>
-            </>
-          ) : selectedStation ? (
-            <>
-              <span className="metro-details-kicker">{selectedStation.aggregate ? "Aggregate station" : "Work station"}</span>
-              <h3>{selectedHierarchyParent?.label ?? (selectedStation.aggregate ? aggregateCountLabel(selectedStation.entry) : workLabel(index, selectedStation.entry.workIds[0]!))}</h3>
-              <p>{selectedHierarchyParent ? `${aggregateCountLabel(selectedStation.entry)} · ` : ""}{selectedStation.entry.temporal.displayLabel} · {dateQualityLabel(selectedStation)} · {reachSummary(selectedStation.entry)}</p>
-              {selectedStation.interchange ? (
-                <div className="metro-continuity-callout">
-                  <strong>Continuity ≠ influence</strong>
-                  <p>
-                    These trajectories meet here through shared tag membership.
-                    Shared membership is not a claim of influence or causality.
-                  </p>
-                </div>
-              ) : null}
-              {selectedStation.entry.temporal.precision !== "day" ? (
-                <div className="metro-flexible-date-note">
-                  Known only to {selectedStation.entry.temporal.precision === "year"
-                    ? selectedStation.entry.temporal.year
-                    : selectedStation.entry.temporal.displayLabel.replace(/^≈\s*/, "")}.
-                  {" "}Position optimized within the {selectedStation.entry.temporal.precision} for readability.
-                </div>
-              ) : null}
-              {selectedStation.entry.temporal.ambiguityReasons.length ? (
-                <div className="metro-date-warning">{selectedStation.entry.temporal.ambiguityReasons.join("; ")}</div>
-              ) : null}
-              <dl>
-                <div><dt>Earlier reach</dt><dd>{selectedStation.entry.earlierDepth ?? "—"}</dd></div>
-                <div><dt>Later reach</dt><dd>{selectedStation.entry.laterDepth ?? "—"}</dd></div>
-                <div><dt>Visible tags</dt><dd>{selectedStation.visibleTagIds.length}</dd></div>
-                <div><dt>Placement role</dt><dd>{humanize(selectedStation.reachRole)}</dd></div>
-                <div><dt>Context states</dt><dd>{expansionMode === "connected" ? selectedStationContextStateCount : "Directional mode"}</dd></div>
-                <div><dt>Trajectory bundles</dt><dd>{selectedStationBundles.length}</dd></div>
-                <div><dt>Explicit relations</dt><dd>{selectedAtomicRelations.length}</dd></div>
-                {selectedHierarchyParent ? (
-                  <div><dt>Hierarchy</dt><dd>{humanize(selectedStation.entry.membershipType ?? "part_of")} · {selectedHierarchyParent.label}</dd></div>
-                ) : null}
-                {selectedStation.entry.surfacedOutlierWorkIds?.length ? (
-                  <div><dt>Focus exceptions</dt><dd>{selectedStation.entry.surfacedOutlierWorkIds.map((workId) => workLabel(index, workId)).join(", ")}</dd></div>
-                ) : null}
-              </dl>
-              <h4>Contained works</h4>
-              <div className="metro-contained-works">
-                {aggregateStationRepresentedWorkIds(selectedStation.entry).map((workId) => {
-                  const visibleWork = visible.workById.get(workId) ?? null;
-                  const work = visibleWork?.work ?? index.domain.workById.get(workId)!;
-                  return (
-                    <div key={workId} className={refinedWorkId === workId ? "refined" : ""}>
-                      <button
-                        type="button"
-                        aria-pressed={refinedWorkId === workId}
-                        onClick={() => setRefinedWorkId((current) => current === workId ? null : workId)}
-                      >
-                        <span>{work.label}</span>
-                        <small>{humanize(work.medium)} · {visibleWork ? reachSummary(visibleWork) : "outside current reach"}</small>
-                      </button>
-                      <button type="button" onClick={() => onOpen(workId)}>Open record</button>
-                      {visibleWork?.temporal.ambiguityReasons.length ? <small>{visibleWork.temporal.ambiguityReasons.join("; ")}</small> : null}
-                    </div>
-                  );
-                })}
-              </div>
-              <h4>Unique visible tags</h4>
-              <div className="metro-unique-tag-list">
-                {selectedVisibleTagGroups.map((group) => {
-                  const records = selectedAggregateMemberships.filter((membership) =>
-                    group.tagIds.includes(membership.tagId),
-                  );
-                  if (group.conceptRecordCount === 1) {
-                    const membership = records[0]!;
-                    const maximumProviders = membership.strengthSummary.maxWorkIds
-                      .map((workId) => workLabel(index, workId))
-                      .join(", ");
-                    return (
-                      <button type="button" key={group.normalizedLabel} onClick={() => selectDetailsTarget({ kind: "tag", id: membership.tagId })}>
-                        <span>{group.label}</span>
-                        <small>
-                          {tagStrengthBand(membership.strength)} · {strengthValueLabel(membership.strength)} · {normalizedStrengthRangeLabel(
-                            membership.strengthSummary.minStrength,
-                            membership.strengthSummary.maxStrength,
-                            membership.strengthSummary.medianStrength,
-                          )} · {Math.round(membership.strengthSummary.coverage * 100)}% child coverage · mean {strengthValueLabel(membership.strengthSummary.meanStrength)} · {selectedHierarchyParent?.concepts.some((assignment) => assignment.id === membership.tagId) ? "also assigned directly to parent" : "derived from children"} · {maximumProviders ? `maximum from ${maximumProviders}` : "maximum source unknown"} · {reachSummary(membership)}
-                        </small>
-                      </button>
-                    );
-                  }
-                  return (
-                    <details key={group.normalizedLabel}>
-                      <summary>
-                        <span>{group.label}</span>
-                        <small>{group.conceptRecordCount} concept records · strongest {strengthValueLabel(group.strongestStrength)}</small>
-                      </summary>
-                      <div>
-                        {records.map((membership) => (
-                          <button type="button" key={membership.key} onClick={() => selectDetailsTarget({ kind: "tag", id: membership.tagId })}>
-                            <span>{membership.tagId}</span>
-                            <small>
-                              {tagStrengthBand(membership.strength)} · {strengthValueLabel(membership.strength)} · {normalizedStrengthRangeLabel(
-                                membership.strengthSummary.minStrength,
-                                membership.strengthSummary.maxStrength,
-                                membership.strengthSummary.medianStrength,
-                              )} · {membership.strengthSummary.maxWorkIds.length
-                                ? `maximum from ${membership.strengthSummary.maxWorkIds.map((workId) => workLabel(index, workId)).join(", ")}`
-                                : "maximum source unknown"}
-                            </small>
-                          </button>
-                        ))}
-                      </div>
-                    </details>
-                  );
-                })}
-              </div>
-              <h4>Underlying assignments</h4>
-              <ul className="metro-assignment-list">
-                {selectedUnderlyingAssignments.map((assignment) => (
-                  <li
-                    key={`${assignment.tagId}:${assignment.workId}`}
-                    className={refinedWorkId === assignment.workId ? "refined" : ""}
-                  >
-                    <strong>{assignment.label}</strong> on {workLabel(index, assignment.workId)}
-                    <small>
-                      Raw {assignment.rawStrength ?? "unknown"} · {tagStrengthBand(assignment.strength)} · {strengthValueLabel(assignment.strength)}
-                      {` · ${centralityScaleLabel(assignment.centralityScale)}`}
-                      {assignment.historicalRole ? ` · ${humanize(assignment.historicalRole)}` : ""}
-                      {assignment.confidence !== null ? ` · confidence ${Math.round(assignment.confidence * 100)}%` : " · confidence unknown"}
-                    </small>
-                  </li>
-                ))}
-              </ul>
-              {selectedStationBundles.length ? (
-                <>
-                  <h4>Trajectory bundles</h4>
-                  <div className="metro-unique-tag-list">
-                    {selectedStationBundles.map((bundle) => (
-                      <button type="button" key={bundle.id} onClick={() => selectDetailsTarget({ kind: "bundle", id: bundle.id })}>
-                        <span>{bundle.tagIds.length} equivalent tags</span>
-                        <small>{bundle.tagIds.map((tagId) => tagLabel(index, tagId)).join(" · ")}</small>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              ) : null}
-              <h4>Grouped {expansionMode === "connected" ? "connected-context" : "directional"} provenance</h4>
-              <p className="metro-provenance-note">
-                Equivalent seed, direction, source-stop, traversed-tag, and depth explanations are grouped across contained works.
-              </p>
-              <div className="metro-provenance-groups">
-                {provenanceGroups.map((group) => (
-                  <details key={group.key} open={group.workIds.length <= 1}>
-                    <summary>{reachReasonLabel(group.reason, index)}{group.occurrences > 1 ? ` · ${group.occurrences} records` : ""}</summary>
-                    {reachReasonPathLabels(group.reason, index, scene).length ? (
-                      <ol className="metro-provenance-path">
-                        {reachReasonPathLabels(group.reason, index, scene).map((step) => (
-                          <li key={step}>{step}</li>
-                        ))}
-                      </ol>
-                    ) : null}
-                    {group.entries.length ? (
-                      <ul>
-                        {group.entries.map((entry) => (
-                          <li key={`${entry.workId}:${reasonKey(entry.reason)}`}>
-                            <strong>{workLabel(index, entry.workId)}</strong>
-                            <span>{reachReasonLabel(entry.reason, index)}</span>
-                            {reachReasonPathLabels(entry.reason, index, scene).length ? (
-                              <ol className="metro-provenance-path">
-                                {reachReasonPathLabels(entry.reason, index, scene).map((step) => (
-                                  <li key={step}>{step}</li>
-                                ))}
-                              </ol>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </details>
-                ))}
-              </div>
-              {selectedAtomicRelations.length ? (
-                <>
-                  <h4>Explicit relations</h4>
-                  <ul className="metro-relation-cards">
-                    {selectedAtomicRelations.map((relation) => (
-                      <li key={relation.key} className="metro-relation-card">
-                        <strong>{humanize(relation.relationType)}</strong>
-                        <span>{workLabel(index, relation.sourceId)} → {workLabel(index, relation.targetId)}</span>
-                        {relation.chronologyConflict ? <small>Chronology conflict</small> : null}
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              ) : null}
-              <div className="metro-details-actions">
-                {selectedStation.entry.hierarchyParentId ? (
-                  <button type="button" onClick={() => {
-                    setExpandedHierarchyParentIds((current) => [
-                      ...new Set([...current, selectedStation.entry.hierarchyParentId!]),
-                    ].sort());
-                    setSelection(null);
-                    setRefinedWorkId(null);
-                  }}>
-                    Show {aggregateCountLabel(selectedStation.entry).replace(/^\d+\s+/, "")}
-                  </button>
-                ) : null}
-                {selectedExpandedHierarchyParentId ? (
-                  <button type="button" onClick={() => {
-                    setExpandedHierarchyParentIds((current) =>
-                      current.filter((parentId) => parentId !== selectedExpandedHierarchyParentId));
-                    setSelection(null);
-                    setRefinedWorkId(null);
-                  }}>
-                    Collapse into {workLabel(index, selectedExpandedHierarchyParentId)}
-                  </button>
-                ) : null}
-                <button type="button" onClick={clearDetailsTarget}>Clear focus</button>
-              </div>
-            </>
-          ) : selectedRelation ? (
-            <>
-              <span className="metro-details-kicker">Aggregate explicit relation</span>
-              <h3>{selectedRelation.relation.relations.length} {selectedRelation.relation.relations.length === 1 ? "relation" : "relations"}</h3>
-              <p>{selectedRelation.relation.relationTypes.map(humanize).join(" · ")}</p>
-              <dl>
-                <div><dt>Source stop</dt><dd>{aggregateCountLabel(selectedRelation.source.entry)}</dd></div>
-                <div><dt>Target stop</dt><dd>{aggregateCountLabel(selectedRelation.target.entry)}</dd></div>
-                <div><dt>Relation types</dt><dd>{selectedRelation.relation.relationTypes.length}</dd></div>
-                <div><dt>Chronology conflicts</dt><dd>{selectedRelation.relation.relations.filter((relation) => relation.chronologyConflict).length}</dd></div>
-                <div><dt>Shared unique tags</dt><dd>{selectedRelationSharedTags.length}</dd></div>
-                <div><dt>Bundled routes</dt><dd>{selectedRelationBundles.length}</dd></div>
-              </dl>
-              <h4>Strongest shared tags</h4>
-              {selectedRelationSharedTags.length ? (
-                <ol className="metro-strength-profile">
-                  {selectedRelationSharedTags.slice(0, 3).map((tag) => (
-                    <li key={`strongest:${tag.tagId}`}>
-                      <button type="button" onClick={() => selectDetailsTarget({ kind: "tag", id: tag.tagId })}>
-                        <span>{tag.label}</span>
-                        <small>{tagStrengthBand(tag.strength)} · {strengthValueLabel(tag.strength)}</small>
-                      </button>
-                    </li>
-                  ))}
-                </ol>
-              ) : <p>No shared visible tags connect these stops.</p>}
-              <h4>Complete shared unique tags</h4>
-              {selectedRelationSharedTagGroups.length ? (
-                <div className="metro-unique-tag-list">
-                  {selectedRelationSharedTagGroups.map((group) => {
-                    const records = selectedRelationSharedTags.filter((tag) =>
-                      group.tagIds.includes(tag.tagId),
-                    );
-                    if (group.conceptRecordCount === 1) {
-                      const tag = records[0]!;
-                      return (
-                        <button type="button" key={group.normalizedLabel} onClick={() => selectDetailsTarget({ kind: "tag", id: tag.tagId })}>
-                          <span>{group.label}</span>
-                          <small>{tagStrengthBand(tag.strength)} · {strengthValueLabel(tag.strength)}</small>
-                        </button>
-                      );
-                    }
-                    return (
-                      <details key={group.normalizedLabel}>
-                        <summary>
-                          <span>{group.label}</span>
-                          <small>{group.conceptRecordCount} concept records · strongest {strengthValueLabel(group.strongestStrength)}</small>
-                        </summary>
-                        <div>
-                          {records.map((tag) => (
-                            <button type="button" key={tag.tagId} onClick={() => selectDetailsTarget({ kind: "tag", id: tag.tagId })}>
-                              <span>{tag.tagId}</span>
-                              <small>{tagStrengthBand(tag.strength)} · {strengthValueLabel(tag.strength)}</small>
-                            </button>
-                          ))}
-                        </div>
-                      </details>
-                    );
-                  })}
-                </div>
-              ) : <p>No shared visible tags connect these stops.</p>}
-              {selectedRelationBundles.length ? (
-                <>
-                  <h4>Bundled shared tags</h4>
-                  <div className="metro-unique-tag-list">
-                    {selectedRelationBundles.map((bundle) => (
-                      <button type="button" key={bundle.id} onClick={() => selectDetailsTarget({ kind: "bundle", id: bundle.id })}>
-                        <span>{bundle.tagIds.length} bundled tags</span>
-                        <small>{bundle.tagIds.map((tagId) => tagLabel(index, tagId)).join(" · ")}</small>
-                      </button>
-                    ))}
-                  </div>
-                </>
-              ) : null}
-              <h4>Underlying work relations</h4>
-              <ul>
-                {selectedRelation.relation.relations.map((relation) => (
-                  <li key={relation.key}>
-                    {workLabel(index, relation.sourceId)} → {workLabel(index, relation.targetId)} · {humanize(relation.relationType)}
-                    {relation.chronologyConflict ? " · chronology conflict" : ""}
-                  </li>
-                ))}
-              </ul>
-              <div className="metro-details-actions">
-                <button type="button" onClick={() => selectDetailsTarget({ kind: "station", id: selectedRelation.source.id })}>Focus source stop</button>
-                <button type="button" onClick={() => selectDetailsTarget({ kind: "station", id: selectedRelation.target.id })}>Focus target stop</button>
-                <button type="button" onClick={clearDetailsTarget}>Clear focus</button>
-              </div>
-            </>
-          ) : (
-            <>
-              <span className="metro-details-kicker">How to read the map</span>
-              <h3>Historical tag continuity</h3>
-              <p>
-                Hover previews only the item under the pointer. Click a trajectory,
-                bundle, station, or explicit relation for persistent focus, path
-                provenance, strength details, and complete underlying records.
-              </p>
-              <dl>
-                <div><dt>Seeds</dt><dd>{seedTagIds.length}</dd></div>
-                <div><dt>Excluded</dt><dd>{excludedTagIds.length}</dd></div>
-                <div><dt>Earlier depth</dt><dd>{earlierDepth}</dd></div>
-                <div><dt>Later depth</dt><dd>{laterDepth}</dd></div>
-                <div><dt>Expansion mode</dt><dd>{expansionMode === "directional" ? "Directional" : "Connected context"}</dd></div>
-              </dl>
-            </>
-            )}
-          </div>
-        </aside>
+        <EvolutionInspector
+          detailsPanelRef={detailsPanelRef}
+          detailsId={detailsId}
+          inspectorOpen={inspectorOpen}
+          inspectorIdentity={inspectorIdentity}
+          selectedTarget={selectedTarget}
+          selectedTag={selectedTag}
+          selectedInferredPreference={selectedInferredPreference}
+          selectedBundle={selectedBundle}
+          selectedBundleRouteStationIds={selectedBundleRouteStationIds}
+          selectedBundleTagGroups={selectedBundleTagGroups}
+          selectedStation={selectedStation}
+          selectedHierarchyParent={selectedHierarchyParent}
+          selectedExpandedHierarchyParentId={selectedExpandedHierarchyParentId}
+          selectedRelation={selectedRelation}
+          selectedAggregateMemberships={selectedAggregateMemberships}
+          selectedStationBundles={selectedStationBundles}
+          selectedVisibleTagGroups={selectedVisibleTagGroups}
+          selectedUnderlyingAssignments={selectedUnderlyingAssignments}
+          selectedTagStrengthProfile={selectedTagStrengthProfile}
+          selectedAtomicRelations={selectedAtomicRelations}
+          selectedRelationSharedTags={selectedRelationSharedTags}
+          selectedRelationSharedTagGroups={selectedRelationSharedTagGroups}
+          selectedRelationBundles={selectedRelationBundles}
+          provenanceGroups={provenanceGroups}
+          selectedStationContextStateCount={selectedStationContextStateCount}
+          index={index}
+          visible={visible}
+          scene={scene}
+          ratings={ratings}
+          onRate={onRate}
+          onOpen={onOpen}
+          showInferredPreference={showInferredPreference}
+          expansionMode={expansionMode}
+          pinnedTagIds={pinnedTagIds}
+          refinedWorkId={refinedWorkId}
+          seedTagIds={seedTagIds}
+          excludedTagIds={excludedTagIds}
+          earlierDepth={earlierDepth}
+          laterDepth={laterDepth}
+          onInspectorOpenChange={setInspectorOpen}
+          onClearDetailsTarget={clearDetailsTarget}
+          onSelectDetailsTarget={selectDetailsTarget}
+          onAddSeed={addSeed}
+          onTogglePinnedTag={(tagId) => setPinnedTagIds((current) =>
+            current.includes(tagId)
+              ? current.filter((candidate) => candidate !== tagId)
+              : [...current, tagId].sort()
+          )}
+          onExcludeTag={(tagId) => {
+            focusDetailsAfterUpdate.current = true;
+            addExclusion(tagId);
+          }}
+          onExpandBundledTags={(tagIds) => {
+            setExplicitExpandedTagIds((current) => [
+              ...new Set([...current, ...tagIds]),
+            ].sort());
+            focusDetailsAfterUpdate.current = true;
+            setIsolatedTagId(null);
+            setSelection(null);
+          }}
+          onRefineWork={(workId) => setRefinedWorkId((current) =>
+            current === workId ? null : workId
+          )}
+          onExpandHierarchy={(parentId) => {
+            setExpandedHierarchyParentIds((current) => [
+              ...new Set([...current, parentId]),
+            ].sort());
+            setSelection(null);
+            setRefinedWorkId(null);
+          }}
+          onCollapseHierarchy={(parentId) => {
+            setExpandedHierarchyParentIds((current) =>
+              current.filter((candidate) => candidate !== parentId)
+            );
+            setSelection(null);
+            setRefinedWorkId(null);
+          }}
+        />
       </div>
       {tooltip ? (
         <Tooltip
