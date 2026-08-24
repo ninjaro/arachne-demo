@@ -1,0 +1,106 @@
+name: Publish demo
+
+on:
+  push:
+    branches: [docs, main, "renovate/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: arachne-demo-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          submodules: false
+          fetch-depth: 1
+      - name: Resolve pinned private data commit
+        run: echo "ARACHNE_DATA_COMMIT=$(git rev-parse HEAD:data)" >> "$GITHUB_ENV"
+      - name: Require the read-only data credential
+        env:
+          DATA_TOKEN: ${{ secrets.ARACHNE_DATA_READ_TOKEN }}
+        run: test -n "$DATA_TOKEN"
+      - name: Checkout exactly the pinned private state
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ninjaro/arachne-data
+          ref: ${{ env.ARACHNE_DATA_COMMIT }}
+          path: data
+          token: ${{ secrets.ARACHNE_DATA_READ_TOKEN }}
+          lfs: true
+          persist-credentials: true
+          fetch-depth: 1
+      - name: Verify pinned checkout and LFS object
+        run: |
+          test "$(git -C data rev-parse HEAD)" = "$ARACHNE_DATA_COMMIT"
+          git -C data lfs pull
+          git -C data config --local --unset-all http.https://github.com/.extraheader
+          test "$(git -C data rev-parse HEAD)" = "$ARACHNE_DATA_COMMIT"
+          python3 -c 'import hashlib,json,pathlib; root=pathlib.Path("data"); m=json.loads((root/"state-manifest.json").read_text()); p=root/m["product"]["path"]; assert hashlib.sha256(p.read_bytes()).hexdigest()==m["product"]["sha256"]'
+      - name: Resolve the exact producing Arachne commit
+        run: echo "ARACHNE_CORE_COMMIT=$(python3 scripts/publish_data.py --data-root data --print-producer-commit)" >> "$GITHUB_ENV"
+      - name: Checkout compatible native projection code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ninjaro/arachne
+          ref: ${{ env.ARACHNE_CORE_COMMIT }}
+          path: .arachne-core
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Verify selected code and data state identity
+        run: python3 .arachne-core/scripts/state_manifest.py check --source-root .arachne-core --state-root data
+      - name: Build the native projection commands
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev libsqlite3-dev libutf8proc-dev nlohmann-json3-dev
+          cd .arachne-core
+          ARACHNE_BUILD_TESTS=OFF ARACHNE_BUILD_LEGACY_CLIENT=OFF scripts/build.sh
+      - name: Derive exact-state research and taste artifacts transiently
+        run: |
+          database="$(python3 -c 'import json; print("data/" + json.load(open("data/state-manifest.json"))["product"]["path"])')"
+          python3 .arachne-core/scripts/export_product_jsonl.py "$database" "${RUNNER_TEMP}/product.jsonl"
+          .arachne-core/build/arachne product research --database "$database" --product-export "${RUNNER_TEMP}/product.jsonl" --output "${RUNNER_TEMP}/research.json" --compact
+          .arachne-core/build/arachne product taste-index --database "$database" --product-export "${RUNNER_TEMP}/product.jsonl" --output "${RUNNER_TEMP}/taste-index.json" --compact
+          echo "ARACHNE_RESEARCH_ARTIFACT=${RUNNER_TEMP}/research.json" >> "$GITHUB_ENV"
+          echo "ARACHNE_TASTE_ARTIFACT=${RUNNER_TEMP}/taste-index.json" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@820762e2bc4f3d14e12023993d81c666bcb5d3ed # v7
+        with:
+          node-version: "24"
+          cache: npm
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
+      - run: npm ci
+      - run: npm test
+      - run: npm run test:publisher
+      - name: Publish the pinned read model
+        run: npm run data
+      - name: Build and verify immutable site
+        env:
+          ARACHNE_DEMO_BASE: /${{ github.event.repository.name }}/
+        run: |
+          npm run build
+          npm run test:static
+          ARACHNE_REQUIRE_NATIVE_ARTIFACTS=1 npm test -- src/data/pinned-artifacts.test.ts
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
+        with:
+          path: dist
+
+  deploy:
+    if: github.ref_name == 'docs' || github.ref_name == 'main'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy the verified immutable bundle
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5

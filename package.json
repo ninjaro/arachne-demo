@@ -1,0 +1,33 @@
+{
+  "name": "arachne-demo",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "data": "python3 scripts/publish_data.py --data-root \"${ARACHNE_DATA_ROOT:-data}\" --output public/data && npm run check:data",
+    "check:data": "node scripts/check_publication.mjs",
+    "dev": "vite",
+    "build:assets": "tsc --noEmit && vite build",
+    "build": "npm run check:data && npm run build:assets && node scripts/build_static_api.mjs",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:publisher": "python3 -m unittest discover -s scripts/tests -v",
+    "test:static": "node scripts/test_static_api.mjs",
+    "verify": "npm run test && npm run test:publisher && npm run data && npm run build && npm run test:static"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^6.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "sql.js-httpvfs": "^0.8.12",
+    "vite": "^8.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11"
+  }
+}

@@ -1,0 +1,77 @@
+name: Tests
+
+on:
+  push:
+    branches: [docs, main, "renovate/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  viewer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          submodules: false
+      - uses: actions/setup-node@820762e2bc4f3d14e12023993d81c666bcb5d3ed # v7
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run test:publisher
+      - run: npm run build:assets
+
+  pinned-data:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          submodules: false
+      - name: Resolve pinned private data commit
+        run: echo "ARACHNE_DATA_COMMIT=$(git rev-parse HEAD:data)" >> "$GITHUB_ENV"
+      - name: Require the demo read-only credential
+        env:
+          DATA_TOKEN: ${{ secrets.ARACHNE_DATA_READ_TOKEN }}
+        run: test -n "$DATA_TOKEN"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ninjaro/arachne-data
+          ref: ${{ env.ARACHNE_DATA_COMMIT }}
+          path: data
+          token: ${{ secrets.ARACHNE_DATA_READ_TOKEN }}
+          lfs: true
+          persist-credentials: true
+          fetch-depth: 1
+      - name: Verify exact gitlink and LFS bytes
+        run: |
+          test "$(git -C data rev-parse HEAD)" = "$ARACHNE_DATA_COMMIT"
+          git -C data lfs pull
+          git -C data config --local --unset-all http.https://github.com/.extraheader
+          python3 -c 'import hashlib,json,pathlib; root=pathlib.Path("data"); m=json.loads((root/"state-manifest.json").read_text()); p=root/m["product"]["path"]; assert hashlib.sha256(p.read_bytes()).hexdigest()==m["product"]["sha256"]'
+      - name: Resolve the exact producing Arachne commit
+        run: echo "ARACHNE_CORE_COMMIT=$(python3 scripts/publish_data.py --data-root data --print-producer-commit)" >> "$GITHUB_ENV"
+      - name: Checkout compatible state-manifest validator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ninjaro/arachne
+          ref: ${{ env.ARACHNE_CORE_COMMIT }}
+          path: .arachne-core
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Verify selected code and data state identity
+        run: python3 .arachne-core/scripts/state_manifest.py check --source-root .arachne-core --state-root data
+      - uses: actions/setup-node@820762e2bc4f3d14e12023993d81c666bcb5d3ed # v7
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run data
+      - run: npm run build
+      - run: npm run test:static

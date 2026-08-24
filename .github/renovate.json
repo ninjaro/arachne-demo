@@ -1,0 +1,24 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "baseBranchPatterns": ["docs"],
+  "extends": ["config:recommended", "group:all"],
+  "enabledManagers": ["npm", "github-actions", "git-submodules"],
+  "automerge": true,
+  "automergeType": "branch",
+  "ignoreTests": false,
+  "branchConcurrentLimit": 1,
+  "prConcurrentLimit": 1,
+  "lockFileMaintenance": {
+    "enabled": false
+  },
+  "git-submodules": {
+    "enabled": true
+  },
+  "packageRules": [
+    {
+      "description": "Check the pinned arachne-data gitlink at least weekly",
+      "matchManagers": ["git-submodules"],
+      "schedule": ["before 5am on Monday"]
+    }
+  ]
+}
