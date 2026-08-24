@@ -246,7 +246,7 @@ export async function openDemoData(
   root = new URL(`${import.meta.env.BASE_URL}data/`, window.location.origin),
   options: OpenDataOptions = {},
 ): Promise<DemoDataAdapter> {
-  const fetcher = options.fetcher ?? fetch;
+  const fetcher: Fetch = options.fetcher ?? ((input, init) => globalThis.fetch(input, init));
   const active = parseActiveManifest(
     await fetchJson(resolveDataAsset(root, "active.json"), fetcher, "no-store"),
   );
