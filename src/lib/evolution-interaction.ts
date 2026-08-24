@@ -1,6 +1,7 @@
 import type { EntityId } from "./types";
 import type { EvolutionDate } from "./evolution-date";
 import type { VisibleEvolution } from "./evolution";
+import { aggregateStationRepresentedWorkCount } from "./evolution";
 import type {
   MetroExplicitRelation,
   MetroScene,
@@ -478,7 +479,7 @@ function tooltipForTag(
   let workCount = 0;
   for (const stationId of stationIds) {
     const station = stationFromScene(scene, stationId);
-    if (station) workCount += station.entry.workCount;
+    if (station) workCount += aggregateStationRepresentedWorkCount(station.entry);
   }
   const strengthByStationId = new Map(
     (visible.aggregateMembershipsByTagId?.get(id) ?? []).map((membership) => [
@@ -579,8 +580,8 @@ function tooltipForStation(
     acceptedTemporalValue: temporal.displayLabel,
     dateQuality: dateQualityLabel(temporal),
     ambiguityReasons: sortedUnique(temporal.ambiguityReasons),
-    workCount: station.entry.workCount,
-    aggregate: station.entry.workCount > 1,
+    workCount: aggregateStationRepresentedWorkCount(station.entry),
+    aggregate: aggregateStationRepresentedWorkCount(station.entry) > 1,
     visibleTags,
     visibleTagGroups: groupUniqueTagLabels(
       visibleTags.map((tag) => ({

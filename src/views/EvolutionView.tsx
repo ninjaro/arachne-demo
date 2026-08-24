@@ -5,10 +5,13 @@ import type {
   MouseEvent,
   PointerEvent,
 } from "react";
-import { TagPicker } from "../components/TagPicker";
+import { EvolutionControls } from "../components/EvolutionControls";
+import type { EvolutionTasteFilter as ControlsTasteFilter } from "../components/EvolutionControls";
 import { EntityRatingButtons } from "../components/common";
 import type { OpenHandler, RateHandler } from "../components/common";
 import {
+  aggregateStationRepresentedWorkCount,
+  aggregateStationRepresentedWorkIds,
   buildEvolutionIndex,
   buildVisibleEvolution,
   defaultEvolutionSeedTagId,
@@ -40,10 +43,6 @@ import {
 import { buildEvolutionTrajectoryProjection } from "../lib/evolution-trajectory-projection";
 import {
   DEFAULT_VISIBLE_TRAJECTORY_LIMIT,
-  MAX_VISIBLE_TRAJECTORY_LIMIT,
-  MIN_VISIBLE_TRAJECTORY_LIMIT,
-  VISIBLE_TRAJECTORY_LIMIT_STEP,
-  normalizeVisibleTrajectoryLimit,
   selectVisibleEvolutionTrajectories,
 } from "../lib/evolution-trajectory-selection";
 import type { TagTrajectoryGroup } from "../lib/trajectory-bundles";
@@ -82,7 +81,7 @@ const DEFAULT_EXPANSION_MODE: ExpansionMode = "directional";
 const DEFAULT_INCLUDE_YEAR_ONLY = true;
 const DEFAULT_INCLUDE_AMBIGUOUS = false;
 
-export type EvolutionTasteFilter = "all" | "positive" | "negative" | "unrated";
+export type EvolutionTasteFilter = ControlsTasteFilter;
 
 export function tagExcludedByTaste(
   rating: -1 | 1 | undefined,
@@ -155,6 +154,26 @@ function tagLabel(index: EvolutionIndex, id: EntityId): string {
 
 function workLabel(index: EvolutionIndex, id: EntityId): string {
   return index.domain.workById.get(id)?.label ?? id;
+}
+
+function aggregateCountLabel(station: AggregateStation): string {
+  const count = aggregateStationRepresentedWorkCount(station);
+  const noun = station.membershipType === "track_of"
+    ? "track"
+    : station.membershipType === "episode_of"
+      ? "episode"
+      : station.membershipType === "season_of"
+        ? "season"
+        : station.membershipType === "chapter_of"
+          ? "chapter"
+          : station.membershipType === "volume_of"
+            ? "volume"
+            : station.membershipType === "issue_of"
+              ? "issue"
+              : station.membershipType === "part_of"
+                ? "part"
+                : "work";
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 function dateQualityLabel(station: MetroStation): string {
@@ -312,9 +331,9 @@ function reachReasonPathLabels(
     if (!stationId) return temporalGroupId;
     const station = scene.stationById.get(stationId);
     if (!station) return `${stationId} (${temporalGroupId})`;
-    const contents = station.entry.workCount === 1
+    const contents = aggregateStationRepresentedWorkCount(station.entry) === 1
       ? workLabel(index, station.entry.workIds[0]!)
-      : `${station.entry.workCount} works`;
+      : aggregateCountLabel(station.entry);
     return `${station.entry.temporal.displayLabel} · ${contents} [${stationId}]`;
   };
   return reason.context.path.map((step, position) => {
@@ -805,11 +824,13 @@ export function EvolutionView({
   const [tooltipPosition, setTooltipPosition] = useState<TooltipPosition>({ left: 8, top: 8 });
   const [refinedWorkId, setRefinedWorkId] = useState<EntityId | null>(null);
   const [explicitExpandedTagIds, setExplicitExpandedTagIds] = useState<EntityId[]>([]);
+  const [expandedHierarchyParentIds, setExpandedHierarchyParentIds] = useState<EntityId[]>([]);
   const [pinnedTagIds, setPinnedTagIds] = useState<EntityId[]>([]);
   const [isolatedTagId, setIsolatedTagId] = useState<EntityId | null>(null);
   const [visibleTrajectoryLimit, setVisibleTrajectoryLimit] = useState(
     DEFAULT_VISIBLE_TRAJECTORY_LIMIT,
   );
+  const [inspectorOpen, setInspectorOpen] = useState(true);
   const inferredConceptTaste = useMemo(
     () => inferConceptTaste(domain, ratings, tasteIndex),
     [domain, ratings, tasteIndex],
@@ -853,6 +874,7 @@ export function EvolutionView({
     );
     setSelection({ kind: "tag", id: requestedTagId });
     setFocusTarget({ kind: "tag", id: requestedTagId });
+    setInspectorOpen(true);
     onRequestedTagHandled?.(requestedTagId);
   }, [index, onRequestedTagHandled, requestedTagId]);
 
@@ -866,6 +888,15 @@ export function EvolutionView({
     return [...excluded];
   }, [excludedTagIds, hideDislikedTags, index.tagOptions, ratings, tasteFilter]);
 
+  const hierarchyFocusTagIds = useMemo(() => [
+    ...new Set([
+      ...seedTagIds,
+      ...pinnedTagIds,
+      ...(selection?.kind === "tag" ? [selection.id] : []),
+      ...(isolatedTagId ? [isolatedTagId] : []),
+    ]),
+  ].sort(), [isolatedTagId, pinnedTagIds, seedTagIds, selection]);
+
   const filters = useMemo(
     () => ({
       seedTagIds,
@@ -875,13 +906,17 @@ export function EvolutionView({
       expansionMode,
       includeYearOnly,
       includeAmbiguous,
+      expandedHierarchyParentIds,
+      hierarchyFocusTagIds,
     }),
     [
       earlierDepth,
       expansionMode,
+      expandedHierarchyParentIds,
       effectiveExcludedTagIds,
       includeAmbiguous,
       includeYearOnly,
+      hierarchyFocusTagIds,
       laterDepth,
       seedTagIds,
     ],
@@ -894,12 +929,16 @@ export function EvolutionView({
       laterDepth,
       includeYearOnly,
       includeAmbiguous,
+      expandedHierarchyParentIds,
+      hierarchyFocusTagIds,
     ]),
     [
       earlierDepth,
       effectiveExcludedTagIds,
+      expandedHierarchyParentIds,
       includeAmbiguous,
       includeYearOnly,
+      hierarchyFocusTagIds,
       laterDepth,
       seedTagIds,
     ],
@@ -1109,6 +1148,13 @@ export function EvolutionView({
     selectedTarget?.kind === "station"
       ? scene.stationById.get(selectedTarget.id) ?? null
       : null;
+  const selectedHierarchyParent = selectedStation?.entry.hierarchyParentId
+    ? index.domain.workById.get(selectedStation.entry.hierarchyParentId) ?? null
+    : null;
+  const selectedExpandedHierarchyParentId = selectedStation?.entry.workIds.length === 1
+    ? index.hierarchy.ancestorsOf(selectedStation.entry.workIds[0]!).find((parentId) =>
+        expandedHierarchyParentIds.includes(parentId)) ?? null
+    : null;
   const selectedRelation =
     selectedTarget?.kind === "relation"
       ? scene.explicitRelations.find((entry) => entry.key === selectedTarget.id) ?? null
@@ -1274,10 +1320,12 @@ export function EvolutionView({
     setFocusTarget(null);
     setRefinedWorkId(null);
     setExplicitExpandedTagIds([]);
+    setExpandedHierarchyParentIds([]);
     setPinnedTagIds([]);
     setIsolatedTagId(null);
     setVisibleTrajectoryLimit(DEFAULT_VISIBLE_TRAJECTORY_LIMIT);
     setZoom(1);
+    setInspectorOpen(true);
   }
 
   function clearTags() {
@@ -1287,6 +1335,7 @@ export function EvolutionView({
     hoverController.current?.closeNow();
     setFocusTarget(null);
     setExplicitExpandedTagIds([]);
+    setExpandedHierarchyParentIds([]);
     setPinnedTagIds([]);
     setIsolatedTagId(null);
   }
@@ -1316,6 +1365,7 @@ export function EvolutionView({
     ));
     setSelection(target);
     setFocusTarget(target);
+    setInspectorOpen(true);
   }
 
   function selectDetailsTarget(target: EvolutionInteractionTarget) {
@@ -1433,200 +1483,6 @@ export function EvolutionView({
         </details>
       </header>
 
-      <div className="metro-controls">
-        <TagPicker
-          label="Included seed tags"
-          placeholder="Search tags to include"
-          mode="include"
-          options={index.tagOptions}
-          selectedIds={seedTagIds}
-          blockedIds={excludedTagIds}
-          onAdd={addSeed}
-          onRemove={(id) => setSeedTagIds((current) => current.filter((item) => item !== id))}
-        />
-        <TagPicker
-          label="Excluded tags"
-          placeholder="Search tags to exclude"
-          mode="exclude"
-          options={index.tagOptions}
-          selectedIds={excludedTagIds}
-          blockedIds={seedTagIds}
-          onAdd={addExclusion}
-          onRemove={(id) => setExcludedTagIds((current) => current.filter((item) => item !== id))}
-        />
-        <div className="metro-depth-control">
-          <label htmlFor="metro-earlier-depth">Earlier depth <strong>{earlierDepth}</strong></label>
-          <input
-            id="metro-earlier-depth"
-            type="range"
-            min={0}
-            max={4}
-            step={1}
-            value={earlierDepth}
-            onChange={(event) => setEarlierDepth(Number(event.target.value))}
-          />
-          <small>Historical predecessors</small>
-        </div>
-        <div className="metro-depth-control">
-          <label htmlFor="metro-later-depth">Later depth <strong>{laterDepth}</strong></label>
-          <input
-            id="metro-later-depth"
-            type="range"
-            min={0}
-            max={4}
-            step={1}
-            value={laterDepth}
-            onChange={(event) => setLaterDepth(Number(event.target.value))}
-          />
-          <small>Later development</small>
-        </div>
-        <fieldset className="metro-expansion-mode">
-          <legend>Expansion mode</legend>
-          <label>
-            <input
-              type="radio"
-              name="metro-expansion-mode"
-              value="directional"
-              checked={expansionMode === "directional"}
-              onChange={() => setExpansionMode("directional")}
-            />
-            Directional
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="metro-expansion-mode"
-              value="connected"
-              checked={expansionMode === "connected"}
-              onChange={() => setExpansionMode("connected")}
-            />
-            Connected context
-          </label>
-        </fieldset>
-        <fieldset className="metro-date-controls">
-          <legend>Date quality</legend>
-          <label>
-            <input
-              type="checkbox"
-              checked={includeYearOnly}
-              onChange={(event) => setIncludeYearOnly(event.target.checked)}
-            />
-            Year-only dates
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={includeAmbiguous}
-              onChange={(event) => setIncludeAmbiguous(event.target.checked)}
-            />
-            Ranged or ambiguous
-          </label>
-        </fieldset>
-        <fieldset className="metro-taste-controls">
-          <legend>Local taste</legend>
-          <select
-            value={tasteFilter}
-            aria-label="Filter trajectories by explicit rating"
-            onChange={(event) =>
-              setTasteFilter(event.target.value as typeof tasteFilter)
-            }
-          >
-            <option value="all">All tags</option>
-            <option value="positive">Positive</option>
-            <option value="negative">Negative</option>
-            <option value="unrated">Unrated</option>
-          </select>
-          <label>
-            <input
-              type="checkbox"
-              checked={hideDislikedTags}
-              onChange={(event) => setHideDislikedTags(event.target.checked)}
-            />
-            Hide explicitly disliked tags
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={showInferredPreference}
-              onChange={(event) => setShowInferredPreference(event.target.checked)}
-            />
-            Show inferred preference
-          </label>
-          <button
-            type="button"
-            onClick={useMyTaste}
-            disabled={
-              !index.tagOptions.some(
-                (tag) =>
-                  ratings[tag.id] === 1 ||
-                  (inferredByConceptId.get(tag.id)?.score ?? 0) > 0,
-              )
-            }
-          >
-            Use my taste
-          </button>
-        </fieldset>
-        <div className="metro-trajectory-limit">
-          <label htmlFor="metro-visible-trajectory-limit">
-            Visible trajectories <strong>{visibleTrajectoryLimit}</strong>
-          </label>
-          <div>
-            <button
-              type="button"
-              aria-label="Decrease visible trajectory limit"
-              disabled={visibleTrajectoryLimit <= MIN_VISIBLE_TRAJECTORY_LIMIT}
-              onClick={() => setVisibleTrajectoryLimit((current) =>
-                normalizeVisibleTrajectoryLimit(
-                  current - VISIBLE_TRAJECTORY_LIMIT_STEP,
-                )
-              )}
-            >−</button>
-            <input
-              id="metro-visible-trajectory-limit"
-              type="number"
-              min={MIN_VISIBLE_TRAJECTORY_LIMIT}
-              max={MAX_VISIBLE_TRAJECTORY_LIMIT}
-              step={VISIBLE_TRAJECTORY_LIMIT_STEP}
-              value={visibleTrajectoryLimit}
-              onChange={(event) => setVisibleTrajectoryLimit(
-                normalizeVisibleTrajectoryLimit(Number(event.target.value)),
-              )}
-            />
-            <button
-              type="button"
-              aria-label="Increase visible trajectory limit"
-              disabled={visibleTrajectoryLimit >= MAX_VISIBLE_TRAJECTORY_LIMIT}
-              onClick={() => setVisibleTrajectoryLimit((current) =>
-                normalizeVisibleTrajectoryLimit(
-                  current + VISIBLE_TRAJECTORY_LIMIT_STEP,
-                )
-              )}
-            >+</button>
-          </div>
-          <small>
-            {trajectorySelection.hiddenCount.toLocaleString()} eligible hidden
-            {trajectorySelection.protectedBeyondLimitCount
-              ? ` · ${trajectorySelection.protectedBeyondLimitCount.toLocaleString()} protected beyond limit`
-              : ""}
-          </small>
-        </div>
-        <div className="metro-control-actions">
-          <button type="button" onClick={clearTags}>Clear tags</button>
-          <button type="button" onClick={resetView}>Reset view</button>
-          <label>
-            Zoom
-            <input
-              type="range"
-              min="0.6"
-              max="1.5"
-              step="0.05"
-              value={zoom}
-              onChange={(event) => setZoom(Number(event.target.value))}
-            />
-          </label>
-        </div>
-      </div>
-
       <div className="metro-summary">
         <span>{sceneSummary}</span>
         <span role="status">
@@ -1647,7 +1503,61 @@ export function EvolutionView({
       </div>
       <span className="sr-status" aria-live="polite">{sceneSummary}</span>
 
-      <div className="metro-workspace">
+      <div className="metro-inspector-controls">
+        <button
+          type="button"
+          aria-controls={detailsId}
+          aria-expanded={inspectorOpen}
+          onClick={() => setInspectorOpen((current) => !current)}
+        >
+          {inspectorOpen ? "Hide inspector" : "Show inspector"}
+        </button>
+      </div>
+
+      <div className={`metro-workspace${inspectorOpen ? "" : " inspector-collapsed"}`}>
+        <EvolutionControls
+          options={index.tagOptions}
+          seedTagIds={seedTagIds}
+          excludedTagIds={excludedTagIds}
+          earlierDepth={earlierDepth}
+          laterDepth={laterDepth}
+          expansionMode={expansionMode}
+          includeYearOnly={includeYearOnly}
+          includeAmbiguous={includeAmbiguous}
+          tasteFilter={tasteFilter}
+          hideDislikedTags={hideDislikedTags}
+          showInferredPreference={showInferredPreference}
+          canUseTaste={index.tagOptions.some(
+            (tag) =>
+              ratings[tag.id] === 1 ||
+              (inferredByConceptId.get(tag.id)?.score ?? 0) > 0,
+          )}
+          visibleTrajectoryLimit={visibleTrajectoryLimit}
+          hiddenTrajectoryCount={trajectorySelection.hiddenCount}
+          protectedBeyondLimitCount={trajectorySelection.protectedBeyondLimitCount}
+          zoom={zoom}
+          onAddSeed={addSeed}
+          onRemoveSeed={(id) => setSeedTagIds((current) =>
+            current.filter((item) => item !== id)
+          )}
+          onAddExclusion={addExclusion}
+          onRemoveExclusion={(id) => setExcludedTagIds((current) =>
+            current.filter((item) => item !== id)
+          )}
+          onEarlierDepthChange={setEarlierDepth}
+          onLaterDepthChange={setLaterDepth}
+          onExpansionModeChange={setExpansionMode}
+          onIncludeYearOnlyChange={setIncludeYearOnly}
+          onIncludeAmbiguousChange={setIncludeAmbiguous}
+          onTasteFilterChange={setTasteFilter}
+          onHideDislikedTagsChange={setHideDislikedTags}
+          onShowInferredPreferenceChange={setShowInferredPreference}
+          onUseTaste={useMyTaste}
+          onVisibleTrajectoryLimitChange={setVisibleTrajectoryLimit}
+          onClearTags={clearTags}
+          onResetView={resetView}
+          onZoomChange={setZoom}
+        />
         <div className="metro-chart-shell">
           {!seedTagIds.length ? (
             <div className="metro-empty">
@@ -1830,8 +1740,8 @@ export function EvolutionView({
                         {group.segments.map((segment) => (
                           <path
                             key={segment.key}
-                            d={segment.path}
-                            className="metro-line-visible metro-strength-segment"
+                            d={segment.ribbonPath}
+                            className="metro-line-visible metro-line-ribbon metro-strength-segment"
                             data-strength={segment.displayStrength ?? "unknown"}
                             style={{ "--segment-width": `${segment.width}px` } as CSSProperties}
                             vectorEffect="non-scaling-stroke"
@@ -1935,7 +1845,7 @@ export function EvolutionView({
                     const marker = evolutionStationMarkerGeometry({
                       aggregate: station.aggregate,
                       interchange: station.interchange,
-                      workCount: station.entry.workCount,
+                      workCount: aggregateStationRepresentedWorkCount(station.entry),
                     });
                     const ambiguousHalfSize = marker.dateHaloRadius / Math.SQRT2;
                     return (
@@ -1958,7 +1868,7 @@ export function EvolutionView({
                         aria-pressed={sameEvolutionInteraction(selection, target)}
                         aria-controls={detailsId}
                         aria-describedby={sameEvolutionInteraction(hover, target) ? tooltipId : undefined}
-                        aria-label={`${station.entry.workCount} ${station.entry.workCount === 1 ? "work" : "works"}, ${station.entry.temporal.displayLabel}, ${dateQualityLabel(station)}, ${reachSummary(station.entry)}, ${station.visibleTagIds.length} visible tags${station.interchange ? ", interchange" : ""}`}
+                        aria-label={`${aggregateCountLabel(station.entry)}, ${station.entry.temporal.displayLabel}, ${dateQualityLabel(station)}, ${reachSummary(station.entry)}, ${station.visibleTagIds.length} visible tags${station.interchange ? ", interchange" : ""}`}
                         onPointerEnter={(event: PointerEvent<SVGGElement>) => previewTarget(target, event.currentTarget)}
                         onPointerLeave={() => stopPreview(target)}
                         onFocus={(event) => {
@@ -1972,7 +1882,9 @@ export function EvolutionView({
                         }}
                         onDoubleClick={(event) => {
                           event.stopPropagation();
-                          if (station.entry.workCount === 1) onOpen(station.entry.workIds[0]!);
+                          if (aggregateStationRepresentedWorkCount(station.entry) === 1) {
+                            onOpen(station.entry.workIds[0]!);
+                          }
                         }}
                         onKeyDown={(event) => activateOnKeyboard(event, () => selectTarget(target))}
                       >
@@ -1991,7 +1903,7 @@ export function EvolutionView({
                           {station.aggregate ? <circle r={marker.coreRadius} className="metro-aggregate-ring" /> : <circle r={marker.coreRadius} className="metro-station-core" />}
                           {station.interchange ? <circle r={marker.structuralRadius} className="metro-interchange-ring" /> : null}
                           {station.aggregate ? (
-                            <text y={2.5} className="metro-aggregate-count">{station.entry.workCount}</text>
+                            <text y={2.5} className="metro-aggregate-count">{aggregateStationRepresentedWorkCount(station.entry)}</text>
                           ) : (
                             <circle r={1.45} className="metro-station-center" />
                           )}
@@ -2012,6 +1924,7 @@ export function EvolutionView({
           className="metro-details"
           data-details-kind={selectedTarget?.kind ?? "none"}
           aria-live="polite"
+          hidden={!inspectorOpen}
           tabIndex={-1}
         >
           {selectedTag ? (
@@ -2176,8 +2089,8 @@ export function EvolutionView({
           ) : selectedStation ? (
             <>
               <span className="metro-details-kicker">{selectedStation.aggregate ? "Aggregate station" : "Work station"}</span>
-              <h3>{selectedStation.aggregate ? `${selectedStation.entry.workCount} works` : workLabel(index, selectedStation.entry.workIds[0]!)}</h3>
-              <p>{selectedStation.entry.temporal.displayLabel} · {dateQualityLabel(selectedStation)} · {reachSummary(selectedStation.entry)}</p>
+              <h3>{selectedHierarchyParent?.label ?? (selectedStation.aggregate ? aggregateCountLabel(selectedStation.entry) : workLabel(index, selectedStation.entry.workIds[0]!))}</h3>
+              <p>{selectedHierarchyParent ? `${aggregateCountLabel(selectedStation.entry)} · ` : ""}{selectedStation.entry.temporal.displayLabel} · {dateQualityLabel(selectedStation)} · {reachSummary(selectedStation.entry)}</p>
               {selectedStation.entry.temporal.precision !== "day" ? (
                 <div className="metro-flexible-date-note">
                   Known only to {selectedStation.entry.temporal.precision === "year"
@@ -2197,11 +2110,18 @@ export function EvolutionView({
                 <div><dt>Context states</dt><dd>{expansionMode === "connected" ? selectedStationContextStateCount : "Directional mode"}</dd></div>
                 <div><dt>Trajectory bundles</dt><dd>{selectedStationBundles.length}</dd></div>
                 <div><dt>Explicit relations</dt><dd>{selectedAtomicRelations.length}</dd></div>
+                {selectedHierarchyParent ? (
+                  <div><dt>Hierarchy</dt><dd>{humanize(selectedStation.entry.membershipType ?? "part_of")} · {selectedHierarchyParent.label}</dd></div>
+                ) : null}
+                {selectedStation.entry.surfacedOutlierWorkIds?.length ? (
+                  <div><dt>Focus exceptions</dt><dd>{selectedStation.entry.surfacedOutlierWorkIds.map((workId) => workLabel(index, workId)).join(", ")}</dd></div>
+                ) : null}
               </dl>
               <h4>Contained works</h4>
               <div className="metro-contained-works">
-                {selectedStation.entry.workIds.map((workId) => {
-                  const work = visible.workById.get(workId)!;
+                {aggregateStationRepresentedWorkIds(selectedStation.entry).map((workId) => {
+                  const visibleWork = visible.workById.get(workId) ?? null;
+                  const work = visibleWork?.work ?? index.domain.workById.get(workId)!;
                   return (
                     <div key={workId} className={refinedWorkId === workId ? "refined" : ""}>
                       <button
@@ -2209,11 +2129,11 @@ export function EvolutionView({
                         aria-pressed={refinedWorkId === workId}
                         onClick={() => setRefinedWorkId((current) => current === workId ? null : workId)}
                       >
-                        <span>{work.work.label}</span>
-                        <small>{humanize(work.work.medium)} · {reachSummary(work)}</small>
+                        <span>{work.label}</span>
+                        <small>{humanize(work.medium)} · {visibleWork ? reachSummary(visibleWork) : "outside current reach"}</small>
                       </button>
                       <button type="button" onClick={() => onOpen(workId)}>Open record</button>
-                      {work.temporal.ambiguityReasons.length ? <small>{work.temporal.ambiguityReasons.join("; ")}</small> : null}
+                      {visibleWork?.temporal.ambiguityReasons.length ? <small>{visibleWork.temporal.ambiguityReasons.join("; ")}</small> : null}
                     </div>
                   );
                 })}
@@ -2237,7 +2157,7 @@ export function EvolutionView({
                             membership.strengthSummary.minStrength,
                             membership.strengthSummary.maxStrength,
                             membership.strengthSummary.medianStrength,
-                          )} · {maximumProviders ? `maximum from ${maximumProviders}` : "maximum source unknown"} · {reachSummary(membership)}
+                          )} · {Math.round(membership.strengthSummary.coverage * 100)}% child coverage · mean {strengthValueLabel(membership.strengthSummary.meanStrength)} · {selectedHierarchyParent?.concepts.some((assignment) => assignment.id === membership.tagId) ? "also assigned directly to parent" : "derived from children"} · {maximumProviders ? `maximum from ${maximumProviders}` : "maximum source unknown"} · {reachSummary(membership)}
                         </small>
                       </button>
                     );
@@ -2347,6 +2267,27 @@ export function EvolutionView({
                 </>
               ) : null}
               <div className="metro-details-actions">
+                {selectedStation.entry.hierarchyParentId ? (
+                  <button type="button" onClick={() => {
+                    setExpandedHierarchyParentIds((current) => [
+                      ...new Set([...current, selectedStation.entry.hierarchyParentId!]),
+                    ].sort());
+                    setSelection(null);
+                    setRefinedWorkId(null);
+                  }}>
+                    Show {aggregateCountLabel(selectedStation.entry).replace(/^\d+\s+/, "")}
+                  </button>
+                ) : null}
+                {selectedExpandedHierarchyParentId ? (
+                  <button type="button" onClick={() => {
+                    setExpandedHierarchyParentIds((current) =>
+                      current.filter((parentId) => parentId !== selectedExpandedHierarchyParentId));
+                    setSelection(null);
+                    setRefinedWorkId(null);
+                  }}>
+                    Collapse into {workLabel(index, selectedExpandedHierarchyParentId)}
+                  </button>
+                ) : null}
                 <button type="button" onClick={clearDetailsTarget}>Clear focus</button>
               </div>
             </>
@@ -2356,8 +2297,8 @@ export function EvolutionView({
               <h3>{selectedRelation.relation.relations.length} {selectedRelation.relation.relations.length === 1 ? "relation" : "relations"}</h3>
               <p>{selectedRelation.relation.relationTypes.map(humanize).join(" · ")}</p>
               <dl>
-                <div><dt>Source stop</dt><dd>{selectedRelation.source.entry.workCount} works</dd></div>
-                <div><dt>Target stop</dt><dd>{selectedRelation.target.entry.workCount} works</dd></div>
+                <div><dt>Source stop</dt><dd>{aggregateCountLabel(selectedRelation.source.entry)}</dd></div>
+                <div><dt>Target stop</dt><dd>{aggregateCountLabel(selectedRelation.target.entry)}</dd></div>
                 <div><dt>Relation types</dt><dd>{selectedRelation.relation.relationTypes.length}</dd></div>
                 <div><dt>Chronology conflicts</dt><dd>{selectedRelation.relation.relations.filter((relation) => relation.chronologyConflict).length}</dd></div>
                 <div><dt>Shared unique tags</dt><dd>{selectedRelationSharedTags.length}</dd></div>

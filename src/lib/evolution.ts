@@ -20,6 +20,15 @@ import {
   type AggregateTagStrength,
   type WeightedTagMembership,
 } from "./evolution-strength";
+import {
+  buildAtomicTrajectoryProfile,
+  selectHierarchyCollapseGroups,
+  type AtomicTrajectoryProfile,
+} from "./evolution-aggregation";
+import {
+  buildEvolutionHierarchyIndex,
+  type EvolutionHierarchyIndex,
+} from "./evolution-hierarchy";
 
 export type IndexedWeightedTagMembership = Omit<
   WeightedTagMembership,
@@ -56,6 +65,7 @@ export interface OrientedWorkRelation {
 
 export interface EvolutionIndex {
   domain: Domain;
+  hierarchy: EvolutionHierarchyIndex;
   temporalByWorkId: Map<EntityId, EvolutionDate>;
   tagById: Map<EntityId, EvolutionTag>;
   tagsByWorkId: Map<EntityId, EvolutionTag[]>;
@@ -93,6 +103,10 @@ export interface EvolutionFilters extends EvolutionDateFilters {
   earlierDepth: number;
   laterDepth: number;
   expansionMode: ExpansionMode;
+  /** Hierarchy parents locally expanded by the viewer; traversal stays atomic. */
+  expandedHierarchyParentIds?: readonly EntityId[];
+  /** Selected/pinned trajectory IDs used only for post-traversal outlier projection. */
+  hierarchyFocusTagIds?: readonly EntityId[];
   /** Optional viewer/test override; omitted fields use conservative defaults. */
   safetyLimits?: Partial<EvolutionSafetyLimits>;
 }
@@ -240,14 +254,32 @@ export interface AggregateStation extends DirectionalReachInfo {
   workIds: EntityId[];
   visibleTagIds: EntityId[];
   workCount: number;
+  hierarchyParentId?: EntityId;
+  membershipType?: string;
+  surfacedOutlierWorkIds?: EntityId[];
+  hierarchySiblingOrder?: number;
+  /** Full canonical descendants represented by a hierarchy aggregate. */
+  hierarchyChildIds?: EntityId[];
   reach: DirectionalReachInfo;
+}
+
+export function aggregateStationRepresentedWorkIds(
+  station: Pick<AggregateStation, "workIds" | "hierarchyChildIds">,
+): readonly EntityId[] {
+  return station.hierarchyChildIds ?? station.workIds;
+}
+
+export function aggregateStationRepresentedWorkCount(
+  station: Pick<AggregateStation, "workIds" | "hierarchyChildIds">,
+): number {
+  return aggregateStationRepresentedWorkIds(station).length;
 }
 
 export interface AggregateMembership extends DirectionalReachInfo {
   key: string;
   tagId: EntityId;
   stationId: string;
-  /** Maximum normalized assignment at this aggregate stop. */
+  /** Coverage-aware remapped assignment at this aggregate stop. */
   strength: number | null;
   strengthSummary: AggregateTagStrength;
   reach: DirectionalReachInfo;
@@ -260,6 +292,7 @@ export interface VisibleMembership extends DirectionalReachInfo {
   strength: number | null;
   rawStrength: number | null;
   centralityScale: ConceptAssignment["centralityScale"];
+  relationType: ConceptAssignment["relationType"];
   historicalRole: string | null;
   confidence: number | null;
 }
@@ -664,6 +697,7 @@ export function buildEvolutionIndex(domain: Domain): EvolutionIndex {
 
   return {
     domain,
+    hierarchy: buildEvolutionHierarchyIndex(domain),
     temporalByWorkId,
     tagById,
     tagsByWorkId,
@@ -717,6 +751,8 @@ const DEFAULT_EVOLUTION_SAFETY_LIMITS: EvolutionSafetyLimits = {
 interface ResolvedEvolutionFilters extends EvolutionFilters {
   earlierDepth: number;
   laterDepth: number;
+  expandedHierarchyParentIds: readonly EntityId[];
+  hierarchyFocusTagIds: readonly EntityId[];
   safetyLimits: EvolutionSafetyLimits;
 }
 
@@ -732,6 +768,10 @@ function normalizedFilters(filters: EvolutionFilters): ResolvedEvolutionFilters 
     earlierDepth,
     laterDepth,
     expansionMode: filters.expansionMode ?? "directional",
+    expandedHierarchyParentIds: deduplicatedIds(
+      filters.expandedHierarchyParentIds ?? [],
+    ).sort(),
+    hierarchyFocusTagIds: deduplicatedIds(filters.hierarchyFocusTagIds ?? []).sort(),
     safetyLimits: {
       maxVisibleTags: positiveLimit(
         requestedLimits.maxVisibleTags,
@@ -825,8 +865,10 @@ interface AggregateProjection {
 function aggregateTemporal(temporals: readonly EvolutionDate[]): EvolutionDate {
   const ordered = temporals.slice().sort((left, right) => {
     const qualityRank = (value: EvolutionDate) =>
-      value.quality === "ambiguous" ? 0 : value.quality === "year-only" ? 1 : 2;
-    return qualityRank(left) - qualityRank(right) || left.displayLabel.localeCompare(right.displayLabel);
+      value.quality === "precise" ? 0 : value.quality === "year-only" ? 1 : 2;
+    return compareEvolutionDates(left, right) ||
+      qualityRank(left) - qualityRank(right) ||
+      left.displayLabel.localeCompare(right.displayLabel);
   });
   const representative = ordered[0]!;
   const ambiguityReasons = [...new Set(temporals.flatMap((temporal) => temporal.ambiguityReasons))]
@@ -844,34 +886,103 @@ function aggregateTemporal(temporals: readonly EvolutionDate[]): EvolutionDate {
 }
 
 function buildAggregateProjection(
+  index: EvolutionIndex,
   tags: VisibleEvolutionTag[],
   works: readonly VisibleEvolutionWork[],
   memberships: readonly VisibleMembership[],
   relations: readonly VisibleExplicitRelation[],
+  expandedHierarchyParentIds: readonly EntityId[],
+  hierarchyFocusTagIds: readonly EntityId[],
 ): AggregateProjection {
+  const profileByWorkId = new Map<EntityId, AtomicTrajectoryProfile>(
+    index.domain.works.map((work) => [
+      work.id,
+      buildAtomicTrajectoryProfile(work),
+    ]),
+  );
+  const directProfileByParentId = new Map<EntityId, AtomicTrajectoryProfile>();
+  for (const parentId of index.hierarchy.childrenByParentId.keys()) {
+    const parent = index.domain.workById.get(parentId);
+    if (parent) directProfileByParentId.set(parentId, buildAtomicTrajectoryProfile(parent));
+  }
+  const protectedRelationEndpoints = new Set(
+    relations.flatMap((relation) => [relation.sourceId, relation.targetId]),
+  );
+  const hierarchyGroups = selectHierarchyCollapseGroups(
+    index.hierarchy,
+    profileByWorkId,
+    directProfileByParentId,
+    protectedRelationEndpoints,
+    new Set([
+      ...tags.filter((tag) => tag.seed).map((tag) => tag.tag.id),
+      ...hierarchyFocusTagIds,
+    ]),
+  ).filter((group) => !expandedHierarchyParentIds.includes(group.parentId));
+  const hierarchyGroupByWorkId = new Map(
+    hierarchyGroups.flatMap((group) =>
+      group.representedWorkIds.map((workId) => [workId, group] as const)),
+  );
+  const hierarchyGroupById = new Map(
+    hierarchyGroups.map((group) => [group.id, group]),
+  );
+  const expandedHierarchyWorkIds = new Set(
+    expandedHierarchyParentIds.flatMap((parentId) =>
+      index.hierarchy.descendantsOf(parentId)),
+  );
   const groups = new Map<
     string,
-    { temporals: EvolutionDate[]; visibleTagIds: EntityId[]; works: VisibleEvolutionWork[] }
+    {
+      temporals: EvolutionDate[];
+      visibleTagIds: EntityId[];
+      works: VisibleEvolutionWork[];
+      hierarchyParentId?: EntityId;
+      membershipType?: string;
+      hierarchyWorkOrder?: EntityId[];
+      surfacedOutlierWorkIds?: EntityId[];
+      hierarchySiblingOrder?: number;
+      hierarchyChildIds?: EntityId[];
+    }
   >();
   for (const work of works) {
-    const id = aggregateStationId(work.temporal.bucketId, work.visibleTagIds);
+    const hierarchyGroup = hierarchyGroupByWorkId.get(work.work.id);
+    const expandedMembership = expandedHierarchyWorkIds.has(work.work.id)
+      ? index.hierarchy.membershipByChildId.get(work.work.id)
+      : undefined;
+    const id = hierarchyGroup?.id ?? (expandedMembership
+      ? `work:${encodeURIComponent(work.work.id)}`
+      : aggregateStationId(work.temporal.bucketId, work.visibleTagIds));
     let group = groups.get(id);
     if (!group) {
       group = {
         temporals: [],
-        visibleTagIds: work.visibleTagIds.slice().sort(),
+        visibleTagIds: [],
         works: [],
+        hierarchyParentId: hierarchyGroup?.parentId,
+        membershipType: hierarchyGroup?.membershipType,
+        hierarchyWorkOrder: hierarchyGroup?.representedWorkIds,
+        surfacedOutlierWorkIds: hierarchyGroup?.surfacedOutlierWorkIds,
+        hierarchySiblingOrder: expandedMembership
+          ? (index.hierarchy.childrenByParentId.get(expandedMembership.parentId) ?? [])
+              .indexOf(work.work.id)
+          : undefined,
+        hierarchyChildIds: hierarchyGroup?.representedWorkIds,
       };
       groups.set(id, group);
     }
     group.temporals.push(work.temporal);
     group.works.push(work);
+    group.visibleTagIds = [
+      ...new Set([...group.visibleTagIds, ...work.visibleTagIds]),
+    ].sort();
   }
 
   const stations = [...groups.entries()]
     .map(([id, group]): AggregateStation => {
       const reach = combineDirectionalReach(group.works);
-      const workIds = group.works.map((work) => work.work.id).sort();
+      const groupedWorkIds = new Set(group.works.map((work) => work.work.id));
+      const workIds = group.hierarchyWorkOrder
+        ? group.hierarchyWorkOrder.filter((workId) => groupedWorkIds.has(workId))
+        : [...groupedWorkIds].sort();
       return {
         id,
         temporalBucketId: group.temporals[0]!.bucketId,
@@ -879,6 +990,11 @@ function buildAggregateProjection(
         workIds,
         visibleTagIds: group.visibleTagIds,
         workCount: workIds.length,
+        hierarchyParentId: group.hierarchyParentId,
+        membershipType: group.membershipType,
+        surfacedOutlierWorkIds: group.surfacedOutlierWorkIds,
+        hierarchySiblingOrder: group.hierarchySiblingOrder,
+        hierarchyChildIds: group.hierarchyChildIds,
         ...reach,
         reach,
       };
@@ -912,10 +1028,26 @@ function buildAggregateProjection(
         strength: membership.strength,
         rawStrength: membership.rawStrength,
         centralityScale: membership.centralityScale,
+        relationType: membership.relationType,
         historicalRole: membership.historicalRole,
         confidence: membership.confidence,
       }));
-      const strengthSummary = aggregateTagStrength(weightedSources);
+      const hierarchyStrength = hierarchyGroupById
+        .get(station.id)
+        ?.profile.supportByTagId.get(tagId)
+        ?.derived;
+      const strengthSummary = hierarchyStrength
+        ? {
+            ...hierarchyStrength,
+            memberships: hierarchyStrength.memberships.map((membership) => ({
+              ...membership,
+              stationId: station.id,
+            })),
+          }
+        : aggregateTagStrength(
+            weightedSources,
+            aggregateStationRepresentedWorkCount(station),
+          );
       aggregateMemberships.push({
         key: `${tagId}\u0000${station.id}`,
         tagId,
@@ -2018,6 +2150,7 @@ export function buildVisibleEvolution(
       strength: assignment.strength,
       rawStrength: assignment.rawStrength,
       centralityScale: assignment.centralityScale,
+      relationType: assignment.relationType,
       historicalRole: assignment.historicalRole,
       confidence: assignment.confidence,
       ...freezeDirectionalReach(reach),
@@ -2198,7 +2331,15 @@ export function buildVisibleEvolution(
         index.temporalByWorkId.get(relation.sourceId)!.intervalStart >
         index.temporalByWorkId.get(relation.targetId)!.intervalEnd,
     }));
-  const aggregate = buildAggregateProjection(tags, works, visibleMemberships, explicitRelations);
+  const aggregate = buildAggregateProjection(
+    index,
+    tags,
+    works,
+    visibleMemberships,
+    explicitRelations,
+    filters.expandedHierarchyParentIds,
+    filters.hierarchyFocusTagIds,
+  );
   const finalStationIdForStop = (stopId: string): string | undefined => {
     const stop = graph.stopById.get(stopId);
     if (!stop) return undefined;

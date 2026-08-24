@@ -1122,20 +1122,44 @@
 }
 
 .metro-controls {
-  position: relative;
+  position: sticky;
+  top: 5rem;
   z-index: 20;
   display: grid;
-  grid-template-columns:
-    repeat(2, minmax(14rem, 1.2fr))
-    repeat(2, minmax(7rem, 0.45fr))
-    minmax(9rem, 0.55fr)
-    minmax(11rem, 0.65fr)
-    minmax(12rem, 0.7fr)
-    minmax(10rem, 0.55fr)
-    auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
+  overflow: auto;
+  max-height: calc(100vh - 6rem);
   gap: 0.55rem;
-  margin-bottom: 0.55rem;
+  margin: 0;
+}
+
+.metro-advanced-controls {
+  grid-column: 1 / -1;
+  min-width: 0;
+  background: #161c1e;
+  border: 1px solid #30393c;
+  border-radius: 0.55rem;
+}
+
+.metro-advanced-controls > summary {
+  padding: 0.55rem 0.7rem;
+  color: #aeb8ba;
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+}
+
+.metro-advanced-controls[open] > summary {
+  border-bottom: 1px solid #30393c;
+}
+
+.metro-advanced-controls-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.55rem;
+  padding: 0.55rem;
 }
 
 .metro-tag-picker,
@@ -1463,11 +1487,29 @@
 .metro-summary i.depth-2 { opacity: 0.5; border-top-width: 2.2px; }
 .metro-summary i.depth-3 { opacity: 0.34; border-top-width: 1.8px; }
 
+.metro-inspector-controls {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 0.35rem;
+}
+
+.metro-inspector-controls button {
+  padding: 0.34rem 0.55rem;
+  color: #aeb8ba;
+  background: #161c1e;
+  border-color: #30393c;
+  font-size: 0.7rem;
+}
+
 .metro-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(19rem, 23rem);
+  grid-template-columns: minmax(16rem, 19rem) minmax(0, 1fr) minmax(18rem, 21rem);
   align-items: start;
   gap: 0.65rem;
+}
+
+.metro-workspace.inspector-collapsed {
+  grid-template-columns: minmax(16rem, 19rem) minmax(0, 1fr);
 }
 
 .metro-chart-shell {
@@ -1480,8 +1522,8 @@
 
 .metro-scroll {
   overflow: auto;
-  height: calc(100vh - 23.5rem);
-  min-height: 35rem;
+  height: calc(100vh - 18rem);
+  min-height: 38rem;
   border-radius: inherit;
 }
 
@@ -1650,6 +1692,11 @@
   pointer-events: none;
 }
 
+.metro-line-visible.metro-line-ribbon {
+  fill: var(--tag-color);
+  stroke: none;
+}
+
 .metro-line-hit {
   fill: none;
   stroke: transparent;
@@ -1671,6 +1718,11 @@
   stroke: #eef4f3;
 }
 
+.metro-trajectory.trajectory-bundle.selected .metro-line-ribbon,
+.metro-trajectory.trajectory-bundle:focus-visible .metro-line-ribbon {
+  fill: #eef4f3;
+}
+
 .metro-bundle-count circle {
   fill: #151c1e;
   stroke: #b8c3c5;
@@ -1690,13 +1742,6 @@
   transition: stroke-width 100ms ease, opacity 100ms ease;
 }
 
-/* Unknown assignment strength is neither weak nor medium. Retain its neutral
-   fallback width but distinguish it with a stable broken stroke. */
-.metro-strength-segment[data-strength="unknown"],
-.metro-station-port-route[data-strength="unknown"] {
-  stroke-dasharray: 5 2.5;
-}
-
 .metro-trajectory.muted-by-selection {
   opacity: 0.1;
 }
@@ -1709,14 +1754,13 @@
 
 .metro-trajectory.selected .metro-line-visible,
 .metro-trajectory:focus-visible .metro-line-visible {
-  stroke-width: calc(var(--segment-width) + 1.8px);
-  filter: drop-shadow(0 0 2px color-mix(in srgb, var(--tag-color), transparent 45%));
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--tag-color), transparent 32%));
 }
 
 .metro-trajectory.previewed .metro-line-visible,
 .metro-trajectory.preview-related .metro-line-visible {
-  stroke-width: calc(var(--segment-width) + 0.7px);
   opacity: 1;
+  filter: drop-shadow(0 0 2px color-mix(in srgb, var(--tag-color), transparent 48%));
 }
 
 .metro-tag-label {
@@ -1985,6 +2029,10 @@
   border-radius: 0.65rem;
 }
 
+.metro-details[hidden] {
+  display: none;
+}
+
 .metro-details h3 {
   margin: 0.18rem 0 0.25rem;
   font-size: 1rem;
@@ -2232,11 +2280,7 @@
   font-size: 0.72rem;
 }
 
-@media (max-width: 1650px) {
-  .metro-controls {
-    grid-template-columns: repeat(2, minmax(18rem, 1fr)) repeat(2, minmax(12rem, 0.65fr));
-  }
-
+@media (max-width: 1100px) {
   .metro-control-actions {
     grid-column: 1 / -1;
     grid-template-columns: auto auto minmax(12rem, 1fr);
@@ -2246,15 +2290,25 @@
     grid-column: auto;
     justify-content: flex-end;
   }
-}
 
-@media (max-width: 1100px) {
+  .metro-advanced-controls-grid {
+    grid-template-columns: repeat(2, minmax(12rem, 1fr));
+  }
+
   .metro-introduction,
   .metro-workspace {
     grid-template-columns: 1fr;
   }
 
   .metro-copy-legend {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metro-controls {
+    position: relative;
+    top: auto;
+    overflow: visible;
+    max-height: none;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -2277,6 +2331,10 @@
   .metro-control-actions label {
     grid-column: 1 / -1;
     justify-content: flex-start;
+  }
+
+  .metro-advanced-controls-grid {
+    grid-template-columns: 1fr;
   }
 
   .metro-copy-legend {

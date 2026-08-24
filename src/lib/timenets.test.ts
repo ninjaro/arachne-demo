@@ -779,6 +779,8 @@ describe("station-centered routing", () => {
     for (const work of works) {
       work.concepts.find((concept) => concept.id === "A")!.centrality = 74;
       work.concepts.find((concept) => concept.id === "B")!.centrality = 76;
+      work.concepts.find((concept) => concept.id === "A")!.centralityScale = "graded";
+      work.concepts.find((concept) => concept.id === "B")!.centralityScale = "graded";
     }
     const visible = buildVisibleEvolution(
       buildEvolutionIndex(fixtureDomain(works)),
@@ -957,6 +959,8 @@ describe("station-centered routing", () => {
     for (const work of works) {
       work.concepts.find((concept) => concept.id === "strong")!.centrality = 100;
       work.concepts.find((concept) => concept.id === "weak")!.centrality = 0;
+      work.concepts.find((concept) => concept.id === "strong")!.centralityScale = "graded";
+      work.concepts.find((concept) => concept.id === "weak")!.centralityScale = "graded";
     }
     const { scene } = sceneFor(works, {
       ...FILTERS,

@@ -8,12 +8,16 @@ import {
   aggregateTagStrength,
   buildTagTrajectorySegments,
   normalizeTagStrength,
+  remapTagStrength,
   tagStrengthBand,
   trajectorySegmentWidth,
   weightedTagMembership,
 } from "./evolution-strength";
 
-function assignment(centrality: number | null): ConceptAssignment {
+function assignment(
+  centrality: number | null,
+  centralityScale: ConceptAssignment["centralityScale"] = "none",
+): ConceptAssignment {
   return {
     id: "tag-a",
     label: "A",
@@ -21,7 +25,7 @@ function assignment(centrality: number | null): ConceptAssignment {
     slug: "a",
     relationType: "associated_with",
     centrality,
-    centralityScale: "none",
+    centralityScale,
     historicalRole: "canonical",
     confidence: 0.8,
   };
@@ -35,6 +39,18 @@ describe("tag strength normalization", () => {
       0.1,
       1,
     ]);
+  });
+
+  it("remaps pair-local scale semantics without discarding the raw value", () => {
+    expect(remapTagStrength(40, "graded")).toBe(0.4);
+    expect(remapTagStrength(40, "ordinal")).toBe(0.625);
+    expect(remapTagStrength(5, "binary")).toBe(1);
+    expect(remapTagStrength(99, "none")).toBe(0.5);
+    expect(remapTagStrength(99, "none", {
+      ordinalLevels: [0.2, 0.6, 0.9],
+      binaryStrength: 0.8,
+      unscaledStrength: null,
+    })).toBeNull();
   });
 
   it("clamps out-of-range values and keeps unknown distinct from weak", () => {
@@ -51,12 +67,12 @@ describe("tag strength normalization", () => {
   });
 
   it("does not mutate source assignments", () => {
-    const source = assignment(75);
+    const source = assignment(75, "graded");
     const snapshot = structuredClone(source);
     expect(weightedTagMembership(source, "work-a", "station-a")).toMatchObject({
       strength: 0.75,
       rawStrength: 75,
-      centralityScale: "none",
+      centralityScale: "graded",
       historicalRole: "canonical",
       confidence: 0.8,
     });
@@ -65,16 +81,21 @@ describe("tag strength normalization", () => {
 });
 
 describe("aggregate station strength", () => {
-  it("uses maximum visibility while preserving range, median, sources, and ties", () => {
+  it("uses coverage-weighted mean while preserving range, median, sources, and ties", () => {
     const memberships = [
-      weightedTagMembership(assignment(20), "work-c", "station-a"),
-      weightedTagMembership(assignment(null), "work-d", "station-a"),
-      weightedTagMembership(assignment(90), "work-b", "station-a"),
-      weightedTagMembership(assignment(90), "work-a", "station-a"),
+      weightedTagMembership(assignment(20, "graded"), "work-c", "station-a"),
+      weightedTagMembership(assignment(null, "graded"), "work-d", "station-a"),
+      weightedTagMembership(assignment(90, "graded"), "work-b", "station-a"),
+      weightedTagMembership(assignment(90, "graded"), "work-a", "station-a"),
     ];
     const summary = aggregateTagStrength(memberships);
     expect(summary).toMatchObject({
-      displayStrength: 0.9,
+      displayStrength: 2 / 3,
+      supportCount: 4,
+      representedWorkCount: 4,
+      coverage: 1,
+      knownStrengthCount: 3,
+      meanStrength: 2 / 3,
       minStrength: 0.2,
       maxStrength: 0.9,
       medianStrength: 0.9,
@@ -87,6 +108,21 @@ describe("aggregate station strength", () => {
       "work-d",
     ]);
     expect(summary.memberships.at(-1)?.strength).toBeNull();
+  });
+
+  it("weakens sparse aggregate support instead of using the strongest child", () => {
+    const summary = aggregateTagStrength([
+      weightedTagMembership(assignment(100, "graded"), "work-a", "station-a"),
+      weightedTagMembership(assignment(50, "graded"), "work-b", "station-a"),
+    ], 10);
+    expect(summary).toMatchObject({
+      supportCount: 2,
+      representedWorkCount: 10,
+      coverage: 0.2,
+      knownStrengthCount: 2,
+      meanStrength: 0.75,
+      displayStrength: 0.15000000000000002,
+    });
   });
 
   it("preserves an all-unknown aggregate as unknown", () => {
@@ -110,7 +146,8 @@ describe("aggregate station strength", () => {
       { ...duplicatedProvider, workId: "work-b", strength: Number.NaN },
     ]);
     expect(summary).toMatchObject({
-      minStrength: 1,
+      displayStrength: 0.75,
+      minStrength: 0.5,
       maxStrength: 1,
       maxWorkIds: ["work-a"],
     });

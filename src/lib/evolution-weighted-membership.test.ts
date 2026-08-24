@@ -8,9 +8,11 @@ function weightedDomain(reversed = false) {
   const weak = fixtureWork({ id: "work-weak", year: 1976, tags: ["tag-a"] });
   const strong = fixtureWork({ id: "work-strong", year: 1976, tags: ["tag-a"] });
   weak.concepts[0]!.centrality = 20;
+  weak.concepts[0]!.centralityScale = "graded";
   weak.concepts[0]!.historicalRole = "peripheral";
   weak.concepts[0]!.confidence = 0.6;
   strong.concepts[0]!.centrality = 90;
+  strong.concepts[0]!.centralityScale = "graded";
   strong.concepts[0]!.historicalRole = "canonical";
   strong.concepts[0]!.confidence = 0.95;
   return fixtureDomain(reversed ? [strong, weak] : [weak, strong]);
@@ -64,12 +66,14 @@ describe("weighted Evolution memberships", () => {
     ]);
   });
 
-  it("uses the strongest contained work without losing aggregate range", () => {
+  it("uses the aggregate mean without losing extrema", () => {
     const { visible } = build();
     const membership = visible.aggregateMemberships[0]!;
-    expect(membership.strength).toBe(0.9);
+    expect(membership.strength).toBe(0.55);
     expect(membership.strengthSummary).toMatchObject({
-      displayStrength: 0.9,
+      displayStrength: 0.55,
+      coverage: 1,
+      meanStrength: 0.55,
       minStrength: 0.2,
       maxStrength: 0.9,
       medianStrength: 0.55,
@@ -114,7 +118,9 @@ describe("weighted Evolution memberships", () => {
       startText: "1910-04-03",
     });
     yearOnly.concepts[0]!.centrality = 20;
+    yearOnly.concepts[0]!.centralityScale = "graded";
     exact.concepts[0]!.centrality = 80;
+    exact.concepts[0]!.centralityScale = "graded";
     const visible = buildVisibleEvolution(
       buildEvolutionIndex(fixtureDomain([exact, yearOnly])),
       {

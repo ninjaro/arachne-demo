@@ -5,6 +5,7 @@ import type {
   VisibleEvolutionTag,
   VisibleAggregateRelation,
 } from "./evolution";
+import { aggregateStationRepresentedWorkCount } from "./evolution";
 import type { EvolutionDate } from "./evolution-date";
 import {
   segmentDisplayStrength,
@@ -100,6 +101,7 @@ export interface MetroTrajectorySegment {
   source: MetroPoint;
   target: MetroPoint;
   path: string;
+  ribbonPath: string;
   sourceStrength: number | null;
   targetStrength: number | null;
   displayStrength: number | null;
@@ -247,21 +249,22 @@ function compressedBucketGap(valueDelta: number): number {
 }
 
 function stationStructuralRadius(station: AggregateStation): number {
+  const workCount = aggregateStationRepresentedWorkCount(station);
   const aggregateGrowth = Math.min(
     5,
-    Math.log2(Math.max(2, station.workCount)) * 1.25,
+    Math.log2(Math.max(2, workCount)) * 1.25,
   );
   const coreRadius =
-    station.workCount > 1
+    workCount > 1
       ? Math.max(
           8.5 + aggregateGrowth,
-          7 + String(Math.max(1, station.workCount)).length * 1.5,
+          7 + String(Math.max(1, workCount)).length * 1.5,
         )
       : 6;
   return (
     coreRadius +
     (station.visibleTagIds.length > 1
-      ? station.workCount > 1
+      ? workCount > 1
         ? 4
         : 3.75
       : 0)
@@ -283,14 +286,14 @@ function stationMarkerWidth(station: AggregateStation): number {
 
 function stationWorkLabelText(
   visible: VisibleEvolution,
-  station: Pick<AggregateStation, "workIds" | "workCount">,
+  station: Pick<AggregateStation, "workIds" | "hierarchyChildIds">,
 ): string {
   const containedWorks = station.workIds
     .map((workId) => visible.workById.get(workId)?.work)
     .filter((work) => work !== undefined);
   return containedWorks.length === 1
     ? containedWorks[0]!.label
-    : `${station.workCount} works`;
+    : `${aggregateStationRepresentedWorkCount(station)} works`;
 }
 
 function workLabelWidth(text: string): number {
@@ -332,6 +335,81 @@ function routeBetween(source: MetroPoint, target: MetroPoint): string {
   const direction = deltaX >= 0 ? 1 : -1;
   const handle = Math.min(82, Math.max(10, Math.abs(deltaX) * 0.42));
   return `M ${source.x} ${source.y} C ${source.x + direction * handle} ${source.y}, ${target.x - direction * handle} ${target.y}, ${target.x} ${target.y}`;
+}
+
+function roundedCoordinate(value: number): number {
+  return Number(value.toFixed(2));
+}
+
+/** A sampled cubic ribbon whose semantic width tapers between memberships. */
+export function taperedTrajectoryRibbonPath(
+  source: MetroPoint,
+  target: MetroPoint,
+  sourceStrength: number | null,
+  targetStrength: number | null,
+  sampleCount = 12,
+): string {
+  if (source.x === target.x && source.y === target.y) return "";
+  const deltaX = target.x - source.x;
+  const direction = deltaX >= 0 ? 1 : -1;
+  const handle = Math.min(82, Math.max(10, Math.abs(deltaX) * 0.42));
+  const straight = Math.abs(source.y - target.y) < 0.01;
+  const firstControl = straight
+    ? source
+    : { x: source.x + direction * handle, y: source.y };
+  const secondControl = straight
+    ? target
+    : { x: target.x - direction * handle, y: target.y };
+  const resolvedSourceStrength = sourceStrength ?? targetStrength;
+  const resolvedTargetStrength = targetStrength ?? sourceStrength;
+  const sourceWidth = trajectorySegmentWidth(resolvedSourceStrength);
+  const targetWidth = trajectorySegmentWidth(resolvedTargetStrength);
+  const left: MetroPoint[] = [];
+  const right: MetroPoint[] = [];
+  const samples = Math.max(2, Math.trunc(sampleCount));
+  for (let index = 0; index <= samples; index += 1) {
+    const time = index / samples;
+    const inverse = 1 - time;
+    const point = straight ? {
+      x: source.x + (target.x - source.x) * time,
+      y: source.y + (target.y - source.y) * time,
+    } : {
+      x: inverse ** 3 * source.x +
+        3 * inverse ** 2 * time * firstControl.x +
+        3 * inverse * time ** 2 * secondControl.x +
+        time ** 3 * target.x,
+      y: inverse ** 3 * source.y +
+        3 * inverse ** 2 * time * firstControl.y +
+        3 * inverse * time ** 2 * secondControl.y +
+        time ** 3 * target.y,
+    };
+    const derivative = straight ? {
+      x: target.x - source.x,
+      y: target.y - source.y,
+    } : {
+      x: 3 * inverse ** 2 * (firstControl.x - source.x) +
+        6 * inverse * time * (secondControl.x - firstControl.x) +
+        3 * time ** 2 * (target.x - secondControl.x),
+      y: 3 * inverse ** 2 * (firstControl.y - source.y) +
+        6 * inverse * time * (secondControl.y - firstControl.y) +
+        3 * time ** 2 * (target.y - secondControl.y),
+    };
+    const length = Math.hypot(derivative.x, derivative.y) || 1;
+    const halfWidth = (sourceWidth + (targetWidth - sourceWidth) * time) / 2;
+    const normal = { x: -derivative.y / length, y: derivative.x / length };
+    left.push({
+      x: roundedCoordinate(point.x + normal.x * halfWidth),
+      y: roundedCoordinate(point.y + normal.y * halfWidth),
+    });
+    right.push({
+      x: roundedCoordinate(point.x - normal.x * halfWidth),
+      y: roundedCoordinate(point.y - normal.y * halfWidth),
+    });
+  }
+  const boundary = [...left, ...right.reverse()];
+  return boundary
+    .map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`)
+    .join(" ") + " Z";
 }
 
 export function deriveLayoutReachRole(
@@ -530,7 +608,7 @@ function buildTemporalGeometry(
       0,
     );
     const containedWorkCount = stations.reduce(
-      (total, station) => total + station.workCount,
+      (total, station) => total + aggregateStationRepresentedWorkCount(station),
       0,
     );
     const longestLabelWidth = stations.reduce(
@@ -730,6 +808,9 @@ function optimizeFlexiblePositions(
   }
 
   const preferredXByStationId = new Map<string, number | null>();
+  const stationEntryById = new Map(
+    visible.stations.map((station) => [station.id, station]),
+  );
   for (const station of visible.stations) {
     const candidates = preferredCandidates.get(station.id) ?? [];
     preferredXByStationId.set(
@@ -770,15 +851,27 @@ function optimizeFlexiblePositions(
   for (const { bucket, stationId } of uncertain) {
     const occupied = occupiedByYear.get(bucket.temporal.year) ?? [];
     const stationPreference = preferredXByStationId.get(stationId) ?? null;
-    const preferred =
-      stationPreference === null
-        ? null
-        : clamp(stationPreference, bucket.xStart, bucket.xEnd);
     const center = (bucket.xStart + bucket.xEnd) / 2;
     const span = bucket.xEnd - bucket.xStart;
     const inset = Math.min(6, span * 0.2);
     const choiceStart = bucket.xStart + inset;
     const choiceEnd = bucket.xEnd - inset;
+    const positionedSiblings = bucket.stationIds
+      .filter((candidateId) =>
+        stationEntryById.get(candidateId)?.hierarchySiblingOrder !== undefined)
+      .sort((leftId, rightId) =>
+        stationEntryById.get(leftId)!.hierarchySiblingOrder! -
+          stationEntryById.get(rightId)!.hierarchySiblingOrder! ||
+        leftId.localeCompare(rightId));
+    const siblingIndex = positionedSiblings.indexOf(stationId);
+    const hierarchyPreference = siblingIndex < 0 || positionedSiblings.length < 2
+      ? null
+      : choiceStart +
+        (choiceEnd - choiceStart) * siblingIndex / (positionedSiblings.length - 1);
+    const preferredSource = stationPreference ?? hierarchyPreference;
+    const preferred = preferredSource === null
+      ? null
+      : clamp(preferredSource, bucket.xStart, bucket.xEnd);
     const withinChoiceRange = (value: number) =>
       clamp(value, choiceStart, choiceEnd);
     const candidates = new Set<number>([
@@ -1046,7 +1139,15 @@ function placeStations(
       : below;
   };
   for (const bucket of placementBuckets) {
-    const ordered = bucket.stationIds.slice().sort();
+    const ordered = bucket.stationIds.slice().sort((leftId, rightId) => {
+      const left = entryById.get(leftId)!;
+      const right = entryById.get(rightId)!;
+      return (
+        (left.hierarchySiblingOrder ?? Number.MAX_SAFE_INTEGER) -
+          (right.hierarchySiblingOrder ?? Number.MAX_SAFE_INTEGER) ||
+        leftId.localeCompare(rightId)
+      );
+    });
     const branchRows = Math.min(5, ordered.length);
     ordered.forEach((stationId, index) => {
       const entry = entryById.get(stationId)!;
@@ -1083,7 +1184,7 @@ function placeStations(
         y: collisionFreeY(x, baseY + clusterOffset, entry),
         visibleTagIds: entry.visibleTagIds,
         interchange: entry.visibleTagIds.length > 1,
-        aggregate: entry.workCount > 1,
+        aggregate: aggregateStationRepresentedWorkCount(entry) > 1,
         reachRole,
         temporalPosition: {
           minimumX:
@@ -1877,6 +1978,12 @@ function buildTrajectory(
       source,
       target,
       path,
+      ribbonPath: taperedTrajectoryRibbonPath(
+        source,
+        target,
+        sourceStrength,
+        targetStrength,
+      ),
       sourceStrength,
       targetStrength,
       displayStrength,
@@ -1979,6 +2086,12 @@ function groupTrajectorySegments(
       targetStrength,
       displayStrength,
       width: trajectorySegmentWidth(displayStrength),
+      ribbonPath: taperedTrajectoryRibbonPath(
+        segment.source,
+        segment.target,
+        sourceStrength,
+        targetStrength,
+      ),
     };
   });
 }

@@ -27,6 +27,7 @@ function scene(reversed = false): VisibleEvolution {
     for (const concept of work.concepts) {
       if (concept.id === "tag-a" || concept.id === "tag-b") {
         concept.centrality = work.id === first.id ? 20 : 80;
+        concept.centralityScale = "graded";
       }
     }
   }
