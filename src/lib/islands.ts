@@ -4,6 +4,7 @@ import type {
   IslandsSettings,
   Ratings,
   Settings,
+  WorkRelation,
 } from "./types";
 import type { EdgeFactor, FeatureIndex } from "./features";
 import { similarityBetween, similarityCandidates } from "./features";
@@ -19,12 +20,16 @@ export interface IslandNode {
   topFactors?: EdgeFactor[];
 }
 
+export type IslandEdgeKind = "similarity" | "explicit";
+
 export interface IslandEdge {
   source: EntityId;
   target: EntityId;
+  kind: IslandEdgeKind;
   similarity: number;
   sharedFeatureCount: number;
   topFactors: EdgeFactor[];
+  relations?: WorkRelation[];
 }
 
 export interface IslandComponent {
@@ -108,6 +113,7 @@ export function buildIslandsGraph(
       neighbors.push({
         source,
         target,
+        kind: "similarity",
         similarity: similarity.similarity,
         sharedFeatureCount: similarity.sharedFeatureCount,
         topFactors: similarity.topFactors,
@@ -124,13 +130,55 @@ export function buildIslandsGraph(
     }
   }
 
-  const edges = [...candidates.values()]
+  const relationsByPair = new Map<string, WorkRelation[]>();
+  for (const relation of domain.workRelations) {
+    if (
+      relation.subjectId === relation.objectId ||
+      !displayed.has(relation.subjectId) ||
+      !displayed.has(relation.objectId)
+    ) continue;
+    const key = edgeKey(relation.subjectId, relation.objectId);
+    const relations = relationsByPair.get(key);
+    if (relations) relations.push(relation);
+    else relationsByPair.set(key, [relation]);
+  }
+
+  const explicitEdges = [...relationsByPair]
+    .map(([key, relations]): IslandEdge => {
+      const [source, target] = key.split("\n") as [EntityId, EntityId];
+      const similarity = similarityBetween(index, source, target);
+      return {
+        source,
+        target,
+        kind: "explicit",
+        similarity: similarity.similarity,
+        sharedFeatureCount: similarity.sharedFeatureCount,
+        topFactors: similarity.topFactors,
+        relations: relations.sort(
+          (left, right) =>
+            left.subjectId.localeCompare(right.subjectId) ||
+            left.objectId.localeCompare(right.objectId) ||
+            left.relationType.localeCompare(right.relationType),
+        ),
+      };
+    })
+    .sort(
+      (left, right) =>
+        left.source.localeCompare(right.source) ||
+        left.target.localeCompare(right.target),
+    );
+  const explicitPairs = new Set(
+    explicitEdges.map((edge) => edgeKey(edge.source, edge.target)),
+  );
+  const inferredEdges = [...candidates.values()]
+    .filter((edge) => !explicitPairs.has(edgeKey(edge.source, edge.target)))
     .sort(
       (left, right) =>
         right.similarity - left.similarity ||
         left.source.localeCompare(right.source) ||
         left.target.localeCompare(right.target),
-    )
+    );
+  const edges = [...explicitEdges, ...inferredEdges]
     .slice(0, Math.max(0, Math.floor(config.maxEdges)))
     .sort(
       (left, right) =>

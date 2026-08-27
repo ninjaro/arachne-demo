@@ -104,13 +104,15 @@ export function IslandsView({
         <span><i className="legend-dot liked" /> liked</span>
         <span><i className="legend-dot disliked" /> disliked</span>
         <span><i className="legend-dot recommended" /> recommended</span>
+        <span><i className="legend-line explicit" /> explicit relation</span>
         <span><i className="legend-line inferred" /> inferred similarity</span>
       </div>
       <p className="graph-help">
         Each displayed work selects up to{" "}
         {settings.islands.maxInferredNeighborsPerNode} nearest feature neighbors
         above similarity {settings.islands.minimumSimilarity}. Disconnected
-        components remain disconnected.
+        components remain disconnected unless a canonical relation connects
+        them. Solid edges are explicit relations; dashed edges are inferred.
       </p>
 
       <div className="graph-scroll islands-scroll">
@@ -157,10 +159,16 @@ export function IslandsView({
                   y1={source.y + 31}
                   x2={target.x + 90}
                   y2={target.y + 31}
-                  className="island-edge"
+                  className={`island-edge ${edge.kind}`}
                 >
                   <title>
-                    {`Similarity ${edge.similarity.toFixed(2)}; ${edge.sharedFeatureCount} shared features; ${edge.topFactors.map(factorPhrase).join("; ")}`}
+                    {edge.kind === "explicit"
+                      ? `Explicit relation: ${edge.relations?.map((relation) => {
+                        const subject = domain.workById.get(relation.subjectId)?.label ?? relation.subjectId;
+                        const object = domain.workById.get(relation.objectId)?.label ?? relation.objectId;
+                        return `${subject} ${humanize(relation.relationType)} ${object}`;
+                      }).join("; ")}`
+                      : `Similarity ${edge.similarity.toFixed(2)}; ${edge.sharedFeatureCount} shared features; ${edge.topFactors.map(factorPhrase).join("; ")}`}
                   </title>
                 </line>
               );

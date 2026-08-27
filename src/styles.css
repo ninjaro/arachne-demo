@@ -463,6 +463,11 @@ tbody tr:focus {
   border-top: 2px dashed #78868c;
 }
 
+.legend-line.explicit {
+  border-top-style: solid;
+  border-top-color: #c9a35c;
+}
+
 .island-box {
   fill: rgba(32, 39, 42, 0.55);
   stroke: #465258;
@@ -479,6 +484,12 @@ tbody tr:focus {
   stroke: #6d7a80;
   stroke-width: 1.3;
   stroke-dasharray: 5 4;
+}
+
+.island-edge.explicit {
+  stroke: #c9a35c;
+  stroke-width: 2;
+  stroke-dasharray: none;
 }
 
 .island-node {
