@@ -114,7 +114,7 @@ export class DemoDataAdapter {
   }
 
   async agent(id: string): Promise<Agent | null> {
-    return projectAgent(this.#source, id);
+    return projectAgent(this.#source, this.#shards, id);
   }
 
   async search(query: string, limit = 100): Promise<EntitySearchResult[]> {

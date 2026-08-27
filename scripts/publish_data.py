@@ -53,6 +53,7 @@ TABLES: dict[str, tuple[str, tuple[str, ...]]] = {
     "works": ("entity_id", ("entity_id",)),
 }
 OPTIONAL_TABLES: dict[str, tuple[str, tuple[str, ...]]] = {
+    "remote_assets": ("entity_id", ("entity_id", "id")),
     "work_relations": ("subject_work_id", ("subject_work_id", "rowid")),
 }
 

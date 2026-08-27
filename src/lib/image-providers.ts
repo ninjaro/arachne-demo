@@ -1,3 +1,5 @@
+import type { RemoteAsset } from "./types";
+
 export type ImageEntityFamily = "work" | "agent";
 
 export type ImageKind =
@@ -5,8 +7,10 @@ export type ImageKind =
   | "work_cover"
   | "work_artwork"
   | "work_image"
+  | "work_logo"
   | "work_backdrop"
   | "agent_portrait"
+  | "agent_image"
   | "agent_logo";
 
 export type ImageProviderMode = "local" | "direct" | "lazy-api";
@@ -21,6 +25,7 @@ export interface ImageEntity {
   id: string;
   family: ImageEntityFamily;
   identifiers: readonly ImageIdentifier[];
+  remoteAssets?: readonly RemoteAsset[];
   medium?: string | null;
   agentType?: string | null;
 }
@@ -590,6 +595,73 @@ export const IMAGE_API_HOSTS: readonly string[] = uniqueProviderHosts(
 export const IMAGE_SOURCE_HOSTS: readonly string[] = uniqueProviderHosts(
   (provider) => provider.allowedImageHosts,
 );
+
+function canonicalImageKind(
+  family: ImageEntityFamily,
+  mediaKind: RemoteAsset["mediaKind"],
+): ImageKind | null {
+  if (family === "work") {
+    if (mediaKind === "poster") return "work_poster";
+    if (mediaKind === "image") return "work_image";
+    if (mediaKind === "logo") return "work_logo";
+    return null;
+  }
+  if (mediaKind === "portrait") return "agent_portrait";
+  if (mediaKind === "image") return "agent_image";
+  if (mediaKind === "logo") return "agent_logo";
+  return null;
+}
+
+function safeCanonicalLink(value: string | null): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && !url.username && !url.password
+      ? value
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function canonicalProviderLabel(provider: string): string {
+  return provider
+    .replaceAll("_", " ")
+    .replaceAll("-", " ")
+    .replace(/\b\w/gu, (letter) => letter.toLocaleUpperCase());
+}
+
+/**
+ * Convert only explicitly displayable canonical references into inline image
+ * candidates. Database order is retained and carries no primary-image meaning.
+ */
+export function canonicalAssetCandidates(entity: ImageEntity): ImageCandidate[] {
+  const candidates: ImageCandidate[] = [];
+  for (const asset of entity.remoteAssets ?? []) {
+    const kind = canonicalImageKind(entity.family, asset.mediaKind);
+    if (
+      asset.displayAllowed !== true ||
+      !asset.directUrl ||
+      !kind ||
+      (asset.mimeType !== null && !asset.mimeType.startsWith("image/")) ||
+      !isAllowedHttpsUrl(asset.directUrl, IMAGE_SOURCE_HOSTS)
+    ) {
+      continue;
+    }
+    candidates.push({
+      src: asset.directUrl,
+      source: canonicalProviderLabel(asset.provider),
+      sourceUrl: safeCanonicalLink(asset.sourcePageUrl),
+      kind,
+      attribution:
+        asset.attributionText ?? asset.creditText ?? asset.authorText ?? undefined,
+      license: asset.licenseName ?? asset.licenseId ?? undefined,
+      licenseUrl: safeCanonicalLink(asset.licenseUrl),
+      providerId: `canonical:${asset.provider}`,
+    });
+  }
+  return candidates;
+}
 
 const IMAGE_PROVIDER_BY_ID = new Map(
   IMAGE_PROVIDER_REGISTRY.map((provider) => [provider.id, provider]),

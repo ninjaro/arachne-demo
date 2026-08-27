@@ -3,6 +3,7 @@ import {
   IMAGE_API_HOSTS,
   IMAGE_PROVIDER_REGISTRY,
   IMAGE_SOURCE_HOSTS,
+  canonicalAssetCandidates,
   commonsThumbnailUrl,
   imageProviderDispatches,
   isAllowedHttpsUrl,
@@ -10,6 +11,7 @@ import {
   validProviderCandidate,
   type ImageEntity,
 } from "./image-providers";
+import type { RemoteAsset } from "./types";
 
 const work = (
   identifiers: ImageEntity["identifiers"],
@@ -34,7 +36,81 @@ function context(entity: ImageEntity, localHints = {}) {
   };
 }
 
+const canonicalAsset = (
+  overrides: Partial<RemoteAsset> = {},
+): RemoteAsset => ({
+  id: "remote-asset:1",
+  provider: "wikimedia_commons",
+  remoteKey: "File:Example.jpg",
+  mediaKind: "poster",
+  directUrl: "https://upload.wikimedia.org/example.jpg",
+  sourcePageUrl: "https://commons.wikimedia.org/wiki/File:Example.jpg",
+  originProvider: "wikidata",
+  originEntityId: "Q1",
+  originProperty: "P3383",
+  mimeType: "image/jpeg",
+  widthPixels: 800,
+  heightPixels: 1200,
+  licenseId: "CC-BY-4.0",
+  licenseName: "CC BY 4.0",
+  licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
+  attributionText: "Example creator / CC BY 4.0",
+  authorText: "Example creator",
+  creditText: "Example collection",
+  rightsStatus: "licensed",
+  displayAllowed: true,
+  rightsNote: null,
+  ...overrides,
+});
+
 describe("image provider registry", () => {
+  it("uses only explicitly displayable canonical assets while preserving source links", () => {
+    const candidates = canonicalAssetCandidates({
+      ...work([]),
+      remoteAssets: [
+        canonicalAsset(),
+        canonicalAsset({
+          id: "remote-asset:2",
+          remoteKey: "File:Link-only.jpg",
+          directUrl: "https://upload.wikimedia.org/link-only.jpg",
+          rightsStatus: "restricted",
+          displayAllowed: false,
+        }),
+        canonicalAsset({
+          id: "remote-asset:3",
+          remoteKey: "File:Undecided.jpg",
+          directUrl: "https://upload.wikimedia.org/undecided.jpg",
+          rightsStatus: "public_domain",
+          displayAllowed: null,
+        }),
+        canonicalAsset({
+          id: "remote-asset:4",
+          remoteKey: "File:Reviewed.jpg",
+          mediaKind: "image",
+          directUrl: "https://upload.wikimedia.org/reviewed.jpg",
+          sourcePageUrl: "https://commons.wikimedia.org/wiki/File:Reviewed.jpg",
+          rightsStatus: "unknown",
+          displayAllowed: true,
+        }),
+      ],
+    });
+
+    expect(candidates).toEqual([
+      expect.objectContaining({
+        src: "https://upload.wikimedia.org/example.jpg",
+        sourceUrl: "https://commons.wikimedia.org/wiki/File:Example.jpg",
+        kind: "work_poster",
+        providerId: "canonical:wikimedia_commons",
+        license: "CC BY 4.0",
+      }),
+      expect.objectContaining({
+        src: "https://upload.wikimedia.org/reviewed.jpg",
+        sourceUrl: "https://commons.wikimedia.org/wiki/File:Reviewed.jpg",
+        kind: "work_image",
+      }),
+    ]);
+  });
+
   it("drives registered links and local/direct/lazy dispatch order", () => {
     const entity = work([
       { scheme: "tvmaze_show", value: "42" },

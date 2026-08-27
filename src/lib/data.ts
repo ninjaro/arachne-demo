@@ -6,6 +6,7 @@ import type {
   Domain,
   Identifier,
   ProductEvent,
+  RemoteAsset,
   ResearchData,
   WorkMembership,
   WorkRelation,
@@ -62,6 +63,10 @@ const ADVISORY_CATEGORIES = new Set([
 ]);
 const MEASUREMENT_TYPES = new Set(["duration", "height", "width", "depth", "pages"]);
 const MEASUREMENT_UNITS = new Set(["seconds", "millimetres", "pages"]);
+const REMOTE_ASSET_MEDIA_KINDS = new Set(["portrait", "poster", "logo", "image"]);
+const REMOTE_ASSET_RIGHTS = new Set([
+  "public_domain", "licensed", "restricted", "unknown",
+]);
 
 function isNullableString(value: unknown): value is string | null {
   return value === null || (typeof value === "string" && value.length > 0);
@@ -83,6 +88,48 @@ function isIdentifier(value: unknown): value is Identifier {
   );
 }
 
+function isRemoteAsset(value: unknown): value is RemoteAsset {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.id === "string" && record.id.length > 0 &&
+    typeof record.provider === "string" && record.provider.length > 0 &&
+    isNullableString(record.remoteKey) &&
+    (record.mediaKind === null ||
+      (typeof record.mediaKind === "string" &&
+        REMOTE_ASSET_MEDIA_KINDS.has(record.mediaKind))) &&
+    isNullableString(record.directUrl) &&
+    isNullableString(record.sourcePageUrl) &&
+    isNullableString(record.originProvider) &&
+    isNullableString(record.originEntityId) &&
+    isNullableString(record.originProperty) &&
+    isNullableString(record.mimeType) &&
+    isNullableInteger(record.widthPixels) &&
+    (record.widthPixels === null || (record.widthPixels as number) > 0) &&
+    isNullableInteger(record.heightPixels) &&
+    (record.heightPixels === null || (record.heightPixels as number) > 0) &&
+    isNullableString(record.licenseId) &&
+    isNullableString(record.licenseName) &&
+    isNullableString(record.licenseUrl) &&
+    isNullableString(record.attributionText) &&
+    isNullableString(record.authorText) &&
+    isNullableString(record.creditText) &&
+    (record.rightsStatus === null ||
+      (typeof record.rightsStatus === "string" &&
+        REMOTE_ASSET_RIGHTS.has(record.rightsStatus))) &&
+    (record.displayAllowed === null || typeof record.displayAllowed === "boolean") &&
+    isNullableString(record.rightsNote) &&
+    (record.remoteKey !== null ||
+      record.directUrl !== null ||
+      record.sourcePageUrl !== null)
+  );
+}
+
+function hasValidRemoteAssets(record: Record<string, unknown>): boolean {
+  return record.remoteAssets === undefined ||
+    (Array.isArray(record.remoteAssets) && record.remoteAssets.every(isRemoteAsset));
+}
+
 function isAgent(value: unknown): value is Agent {
   if (!value || typeof value !== "object") return false;
   const record = value as Record<string, unknown>;
@@ -94,7 +141,8 @@ function isAgent(value: unknown): value is Agent {
     typeof record.agentType === "string" &&
     AGENT_TYPES.has(record.agentType) &&
     Array.isArray(record.identifiers) &&
-    record.identifiers.every(isIdentifier)
+    record.identifiers.every(isIdentifier) &&
+    hasValidRemoteAssets(record)
   );
 }
 
@@ -315,6 +363,7 @@ export function isCatalog(value: unknown): value is Catalog {
           eventsEqual(event, eventById.get(event.id) as ProductEvent),
       ) ||
       !Array.isArray(workRecord.manifestations) ||
+      !hasValidRemoteAssets(workRecord) ||
       !Array.isArray(workRecord.advisories) || !workRecord.advisories.every(isAdvisory) ||
       !Array.isArray(workRecord.measurements) || !workRecord.measurements.every(isMeasurement) ||
       !Array.isArray(workRecord.financialFacts) || !workRecord.financialFacts.every(isFinancialFact)
@@ -329,6 +378,7 @@ export function isCatalog(value: unknown): value is Catalog {
         isNullableString(item.regionCode) === false ||
         isNullableString(item.languageCode) === false ||
         isNullableString(item.label) === false ||
+        !hasValidRemoteAssets(item) ||
         !Array.isArray(item.contributors) ||
         !item.contributors.every((contributor) => {
           if (!isContributor(contributor)) return false;

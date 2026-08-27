@@ -1,4 +1,5 @@
 import {
+  canonicalAssetCandidates,
   imageProviderDispatches,
   isAllowedHttpsUrl,
   validProviderCandidate,
@@ -441,6 +442,17 @@ export class ImageRuntime {
     const deferred: ImageCandidate[] = [];
 
     try {
+      for (const candidate of canonicalAssetCandidates(request.entity)) {
+        if (loaded.length >= target || loaded.length >= maximum) break;
+        if (seenUrls.has(candidate.src)) continue;
+        seenUrls.add(candidate.src);
+        const accepted = await this.loadCandidate(candidate, signal);
+        if (!accepted) continue;
+        loaded.push(accepted);
+        seenSources.add(accepted.source);
+        request.onImage?.(accepted);
+      }
+
       for (const dispatch of imageProviderDispatches(request.entity)) {
         if (loaded.length >= target) break;
         const candidates: ImageCandidate[] = [];

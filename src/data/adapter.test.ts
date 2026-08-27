@@ -33,6 +33,41 @@ const shards: ShardManifest = {
   tables: {},
 };
 
+const shardsWithRemoteAssets: ShardManifest = {
+  ...shards,
+  tables: {
+    remote_assets: {
+      key: "entity_id",
+      columns: [
+        "id",
+        "entity_id",
+        "provider",
+        "remote_key",
+        "media_kind",
+        "direct_url",
+        "source_page_url",
+        "origin_provider",
+        "origin_entity_id",
+        "origin_property",
+        "mime_type",
+        "width_pixels",
+        "height_pixels",
+        "license_id",
+        "license_name",
+        "license_url",
+        "attribution_text",
+        "author_text",
+        "credit_text",
+        "rights_status",
+        "display_allowed",
+        "rights_note",
+      ],
+      rows: 2,
+      chunks: [],
+    },
+  },
+};
+
 class RecordingSource implements ProductRowSource {
   readonly kind = "static-shards" as const;
   allCalls = 0;
@@ -96,6 +131,88 @@ describe("DemoDataAdapter targeted reads", () => {
     });
     expect(source.allCalls).toBe(0);
     expect(source.lookups).not.toContain("works:work-999999");
+  });
+
+  it("projects canonical remote asset links and rights without conflating their URLs", async () => {
+    const source = new RecordingSource();
+    source.rows.set("remote_assets", [
+      {
+        id: 2,
+        entity_id: "work-000001",
+        provider: "wikimedia_commons",
+        remote_key: "File:Restricted.jpg",
+        media_kind: "image",
+        direct_url: "https://upload.wikimedia.org/restricted.jpg",
+        source_page_url: "https://commons.wikimedia.org/wiki/File:Restricted.jpg",
+        origin_provider: "wikidata",
+        origin_entity_id: "Q1",
+        origin_property: "P18",
+        mime_type: "image/jpeg",
+        width_pixels: 640,
+        height_pixels: 480,
+        license_id: null,
+        license_name: null,
+        license_url: null,
+        attribution_text: null,
+        author_text: null,
+        credit_text: null,
+        rights_status: "restricted",
+        display_allowed: 0,
+        rights_note: "Link only",
+      },
+      {
+        id: 1,
+        entity_id: "work-000001",
+        provider: "wikimedia_commons",
+        remote_key: "File:Allowed.jpg",
+        media_kind: "poster",
+        direct_url: "https://upload.wikimedia.org/allowed.jpg",
+        source_page_url: "https://commons.wikimedia.org/wiki/File:Allowed.jpg",
+        origin_provider: "wikidata",
+        origin_entity_id: "Q1",
+        origin_property: "P3383",
+        mime_type: "image/jpeg",
+        width_pixels: 800,
+        height_pixels: 1200,
+        license_id: "CC-BY-4.0",
+        license_name: "CC BY 4.0",
+        license_url: "https://creativecommons.org/licenses/by/4.0/",
+        attribution_text: "Example creator / CC BY 4.0",
+        author_text: "Example creator",
+        credit_text: "Example collection",
+        rights_status: "licensed",
+        display_allowed: 1,
+        rights_note: null,
+      },
+    ]);
+    const adapter = new DemoDataAdapter(
+      new URL("https://example.test/data/"),
+      active,
+      shardsWithRemoteAssets,
+      source,
+      fetch,
+    );
+
+    const result = await adapter.work("work-000001");
+
+    expect(result?.remoteAssets).toEqual([
+      expect.objectContaining({
+        id: "remote-asset:1",
+        directUrl: "https://upload.wikimedia.org/allowed.jpg",
+        sourcePageUrl: "https://commons.wikimedia.org/wiki/File:Allowed.jpg",
+        rightsStatus: "licensed",
+        displayAllowed: true,
+      }),
+      expect.objectContaining({
+        id: "remote-asset:2",
+        directUrl: "https://upload.wikimedia.org/restricted.jpg",
+        sourcePageUrl: "https://commons.wikimedia.org/wiki/File:Restricted.jpg",
+        rightsStatus: "restricted",
+        displayAllowed: false,
+        rightsNote: "Link only",
+      }),
+    ]);
+    expect(source.lookups).toContain("remote_assets.entity_id:work-000001");
   });
 
   it("reports absent native projections clearly", async () => {

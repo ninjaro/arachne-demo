@@ -5,6 +5,7 @@ import type {
   EntityId,
   Identifier,
   Ratings,
+  RemoteAsset,
   Work,
 } from "../lib/types";
 import {
@@ -93,6 +94,89 @@ function IdentifierSection({ identifiers }: { identifiers: Identifier[] }) {
   );
 }
 
+function RemoteAssetList({ assets }: { assets: readonly RemoteAsset[] }) {
+  return (
+    <ul className="plain-list">
+      {assets.map((asset) => {
+        const sourcePageUrl = externalUrl("", "", asset.sourcePageUrl);
+        const directUrl = externalUrl("", "", asset.directUrl);
+        const licenseUrl = externalUrl("", "", asset.licenseUrl);
+        const display = asset.displayAllowed === true
+          ? "inline display allowed"
+          : asset.displayAllowed === false
+            ? "inline display disabled"
+            : "inline display undecided";
+        return (
+          <li key={asset.id}>
+            {humanize(asset.provider)}
+            {asset.mediaKind ? ` · ${humanize(asset.mediaKind)}` : ""}
+            {asset.rightsStatus ? ` · ${humanize(asset.rightsStatus)}` : ""}
+            {` · ${display}`}
+            {asset.remoteKey ? ` · ${asset.remoteKey}` : ""}
+            {sourcePageUrl ? (
+              <>
+                {" · "}
+                <a
+                  href={sourcePageUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  Source page
+                </a>
+              </>
+            ) : null}
+            {directUrl ? (
+              <>
+                {" · "}
+                <a
+                  href={directUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  Media file
+                </a>
+              </>
+            ) : null}
+            {asset.licenseName || asset.licenseId || licenseUrl ? (
+              <>
+                {" · "}
+                {licenseUrl ? (
+                  <a
+                    href={licenseUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    {asset.licenseName ?? asset.licenseId ?? "License"}
+                  </a>
+                ) : (
+                  asset.licenseName ?? asset.licenseId
+                )}
+              </>
+            ) : null}
+            {asset.attributionText ? ` · ${asset.attributionText}` : ""}
+            {asset.creditText ? ` · ${asset.creditText}` : ""}
+            {asset.authorText ? ` · ${asset.authorText}` : ""}
+            {asset.rightsNote ? ` · ${asset.rightsNote}` : ""}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function RemoteAssetSection({ assets }: { assets: readonly RemoteAsset[] }) {
+  if (assets.length === 0) return null;
+  return (
+    <section>
+      <h3>Media references</h3>
+      <RemoteAssetList assets={assets} />
+    </section>
+  );
+}
+
 export function WorkEntityBody({
   work,
   domain,
@@ -152,12 +236,15 @@ export function WorkEntityBody({
           id: work.id,
           family: "work",
           identifiers: work.identifiers,
+          remoteAssets: work.remoteAssets,
           medium: work.medium,
         }}
         label={work.label}
         imageHintsUrl={imageHintsUrl}
         imageHintProduct={imageHintProduct}
       />
+
+      <RemoteAssetSection assets={work.remoteAssets ?? []} />
 
       <RatingButtons work={work} ratings={ratings} onRate={onRate} />
 
@@ -422,6 +509,9 @@ export function WorkEntityBody({
                     ))}
                   </ul>
                 ) : null}
+                {manifestation.remoteAssets?.length ? (
+                  <RemoteAssetList assets={manifestation.remoteAssets} />
+                ) : null}
               </li>
             ))}
           </ul>
@@ -486,12 +576,15 @@ export function AgentEntityBody({
           id: agent.id,
           family: "agent",
           identifiers: agent.identifiers,
+          remoteAssets: agent.remoteAssets,
           agentType: agent.agentType,
         }}
         label={agent.label}
         imageHintsUrl={imageHintsUrl}
         imageHintProduct={imageHintProduct}
       />
+
+      <RemoteAssetSection assets={agent.remoteAssets ?? []} />
 
       {creditedWorks.length ? (
         <section>

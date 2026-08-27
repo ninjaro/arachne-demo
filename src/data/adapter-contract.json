@@ -2,6 +2,7 @@
   "format": "arachne_demo_adapter_contract_v1",
   "adapterContract": "arachne_product_sqlite_v1",
   "supportedSchemaIdentities": [
-    "fae7c3899a19a645cfcc85bef764fafa758f37a5d014108d62025e2d3e3d6ecc"
+    "fae7c3899a19a645cfcc85bef764fafa758f37a5d014108d62025e2d3e3d6ecc",
+    "2d591f7baecdbdf043c104f39be042a7f1bde8bc869d2dc2c28d555eb77d200f"
   ]
 }

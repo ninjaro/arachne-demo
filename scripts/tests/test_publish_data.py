@@ -133,6 +133,67 @@ class PublishDataTests(unittest.TestCase):
             )
             self.assertEqual(active["derived"], {})
 
+    def test_publishes_canonical_remote_assets_as_an_optional_product_table(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "data"
+            root.mkdir()
+            database, _ = fixture_state(root)
+            connection = sqlite3.connect(database)
+            connection.executescript(
+                """
+                CREATE TABLE remote_assets(
+                    id INTEGER PRIMARY KEY,
+                    entity_id TEXT NOT NULL,
+                    provider TEXT NOT NULL,
+                    direct_url TEXT,
+                    source_page_url TEXT,
+                    rights_status TEXT,
+                    display_allowed INTEGER
+                );
+                INSERT INTO remote_assets VALUES(
+                    1,
+                    'work-000001',
+                    'wikimedia_commons',
+                    'https://upload.wikimedia.org/example.jpg',
+                    'https://commons.wikimedia.org/wiki/File:Example.jpg',
+                    'licensed',
+                    1
+                );
+                """
+            )
+            connection.close()
+            manifest_path = root / "state-manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["product"]["sha256"] = sha256(database)
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            commit = commit_state(root, "fixture with canonical remote asset")
+
+            output = Path(temporary) / "public" / "data"
+            active = publish(root, output, commit)
+            fallback = json.loads(
+                (output / active["fallback"]["file"]).read_text(encoding="utf-8")
+            )
+            table = fallback["tables"]["remote_assets"]
+            self.assertEqual(table["key"], "entity_id")
+            self.assertEqual(table["rows"], 1)
+            rows = json.loads(
+                (output / table["chunks"][0]["file"]).read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                rows,
+                [
+                    {
+                        "id": 1,
+                        "entity_id": "work-000001",
+                        "provider": "wikimedia_commons",
+                        "direct_url": "https://upload.wikimedia.org/example.jpg",
+                        "source_page_url": "https://commons.wikimedia.org/wiki/File:Example.jpg",
+                        "rights_status": "licensed",
+                        "display_allowed": 1,
+                    }
+                ],
+            )
+
     def test_hash_mismatch_fails_before_replacing_existing_publication(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "data"

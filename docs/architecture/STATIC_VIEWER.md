@@ -21,10 +21,25 @@ rules above. Operational paths and commands live in the root
 The read adapter exposes the smallest canonical surface needed by the Viewer:
 works and accepted dates; concept assignments with their raw centrality values
 and scales; work memberships; agents and credits; agent relations; explicit
-work relations; and their evidence. Labels and parent/child views derive from
-those records.
+work relations; remote-asset references; and their evidence. Labels and
+parent/child views derive from those records.
 `work_memberships` is the only work-hierarchy source; there is no parallel
 Evolution hierarchy contract.
+
+`remote_assets` remain references, not bundled media. `source_page_url` is a
+provider/catalog page and stays distinct from the media `direct_url`. The
+Viewer may render an explicitly typed image inline only when
+`display_allowed = 1` and the URL is compatible with its closed network policy;
+false or undecided display status remains reference-only, with stored links
+still available. Rights, license, credit, and attribution fields are presented
+as stored. Row order does not designate a primary or correct image, and the
+Viewer does not invent one.
+
+Disposable provider responses, mapping/miner reviews, candidate graphs, and
+image-hint artifacts are not product state and never populate the canonical
+read model. Optional presentation enrichment remains separate from snapshot
+records; reviewed references enter the read model only through
+`remote_assets`.
 
 The static API describes canonical records, evidence, immutable artifacts, and
 view entry points. Layout coordinates, SVG paths, rendered stations, and scene

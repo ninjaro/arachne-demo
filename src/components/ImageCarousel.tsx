@@ -150,6 +150,7 @@ export function EntityImageCarousel({
     entity.medium ?? null,
     entity.agentType ?? null,
     entity.identifiers.map(({ scheme, value }) => [scheme, value]),
+    entity.remoteAssets ?? [],
   ]);
   const selectedHints = localHints?.[entity.id];
   const hintSignature = JSON.stringify(selectedHints ?? []);

@@ -144,6 +144,7 @@ export interface Agent {
   label: string;
   agentType: AgentType;
   identifiers: Identifier[];
+  remoteAssets?: RemoteAsset[];
 }
 
 export interface Contributor extends Agent {
@@ -189,6 +190,30 @@ export interface Identifier {
   url: string | null;
 }
 
+export interface RemoteAsset {
+  id: string;
+  provider: string;
+  remoteKey: string | null;
+  mediaKind: "portrait" | "poster" | "logo" | "image" | null;
+  directUrl: string | null;
+  sourcePageUrl: string | null;
+  originProvider: string | null;
+  originEntityId: string | null;
+  originProperty: string | null;
+  mimeType: string | null;
+  widthPixels: number | null;
+  heightPixels: number | null;
+  licenseId: string | null;
+  licenseName: string | null;
+  licenseUrl: string | null;
+  attributionText: string | null;
+  authorText: string | null;
+  creditText: string | null;
+  rightsStatus: "public_domain" | "licensed" | "restricted" | "unknown" | null;
+  displayAllowed: boolean | null;
+  rightsNote: string | null;
+}
+
 export interface Manifestation {
   id: EntityId;
   type: ManifestationType;
@@ -198,6 +223,7 @@ export interface Manifestation {
   label: string | null;
   contributors: Contributor[];
   events: ProductEvent[];
+  remoteAssets?: RemoteAsset[];
 }
 
 export interface ProductEvent {
@@ -251,6 +277,7 @@ export interface Work {
   advisories: Advisory[];
   measurements: Measurement[];
   identifiers: Identifier[];
+  remoteAssets?: RemoteAsset[];
   manifestations: Manifestation[];
   financialFacts: FinancialFact[];
 }

@@ -10,6 +10,7 @@ import type {
   Manifestation,
   Measurement,
   ProductEvent,
+  RemoteAsset,
   Work,
   WorkMembership,
   WorkRelation,
@@ -45,6 +46,14 @@ function nullableNumber(row: RawRow, field: string): number | null {
   return value;
 }
 
+function nullableBoolean(row: RawRow, field: string): boolean | null {
+  const value = row[field];
+  if (value === null) return null;
+  if (value === 0) return false;
+  if (value === 1) return true;
+  throw new Error(`${field} must be 0, 1, or null`);
+}
+
 function identifier(namespace: string, value: RawRow[string]): string {
   if (typeof value === "string" && value.length > 0) return value;
   if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) {
@@ -67,6 +76,32 @@ function parseProductionInfo(value: RawRow[string]): unknown {
   } catch {
     return value;
   }
+}
+
+function remoteAsset(row: RawRow): RemoteAsset {
+  return {
+    id: identifier("remote-asset", row.id),
+    provider: text(row, "provider"),
+    remoteKey: nullableText(row, "remote_key"),
+    mediaKind: nullableText(row, "media_kind") as RemoteAsset["mediaKind"],
+    directUrl: nullableText(row, "direct_url"),
+    sourcePageUrl: nullableText(row, "source_page_url"),
+    originProvider: nullableText(row, "origin_provider"),
+    originEntityId: nullableText(row, "origin_entity_id"),
+    originProperty: nullableText(row, "origin_property"),
+    mimeType: nullableText(row, "mime_type"),
+    widthPixels: nullableNumber(row, "width_pixels"),
+    heightPixels: nullableNumber(row, "height_pixels"),
+    licenseId: nullableText(row, "license_id"),
+    licenseName: nullableText(row, "license_name"),
+    licenseUrl: nullableText(row, "license_url"),
+    attributionText: nullableText(row, "attribution_text"),
+    authorText: nullableText(row, "author_text"),
+    creditText: nullableText(row, "credit_text"),
+    rightsStatus: nullableText(row, "rights_status") as RemoteAsset["rightsStatus"],
+    displayAllowed: nullableBoolean(row, "display_allowed"),
+    rightsNote: nullableText(row, "rights_note"),
+  };
 }
 
 function preferredNames(rows: RawRow[]): Map<string, string> {
@@ -99,6 +134,7 @@ export async function projectCatalog(
     advisoryRows,
     measurementRows,
     externalIdRows,
+    remoteAssetRows,
     manifestationRows,
     eventRows,
     membershipRows,
@@ -115,6 +151,7 @@ export async function projectCatalog(
     table("parent_guide_assertions"),
     table("measurements"),
     table("external_ids"),
+    shards.tables.remote_assets ? table("remote_assets") : Promise.resolve([]),
     table("manifestations"),
     table("events"),
     table("work_memberships"),
@@ -163,6 +200,9 @@ export async function projectCatalog(
   workRows.sort((left, right) =>
     compareNullableNumber(left, right, "year_start") ||
     compareText(left, right, "entity_id"));
+  remoteAssetRows.sort((left, right) =>
+    compareText(left, right, "entity_id") ||
+    Number(left.id ?? 0) - Number(right.id ?? 0));
 
   const names = preferredNames(nameRows);
   const identifiers = new Map<string, Identifier[]>();
@@ -174,6 +214,11 @@ export async function projectCatalog(
     });
   }
 
+  const remoteAssets = new Map<string, RemoteAsset[]>();
+  for (const row of remoteAssetRows) {
+    append(remoteAssets, text(row, "entity_id"), remoteAsset(row));
+  }
+
   const agents = new Map<string, Agent>();
   for (const row of agentRows) {
     const id = text(row, "entity_id");
@@ -182,6 +227,7 @@ export async function projectCatalog(
       label: names.get(id) ?? id,
       agentType: text(row, "agent_type") as Agent["agentType"],
       identifiers: identifiers.get(id) ?? [],
+      remoteAssets: remoteAssets.get(id) ?? [],
     });
   }
 
@@ -282,6 +328,7 @@ export async function projectCatalog(
       label: nullableText(row, "label") ?? names.get(id) ?? null,
       contributors: credits.get(id) ?? [],
       events: eventsByEntity.get(id) ?? [],
+      remoteAssets: remoteAssets.get(id) ?? [],
     });
   }
 
@@ -324,6 +371,7 @@ export async function projectCatalog(
       advisories: advisories.get(id) ?? [],
       measurements: measurements.get(id) ?? [],
       identifiers: identifiers.get(id) ?? [],
+      remoteAssets: remoteAssets.get(id) ?? [],
       manifestations: manifestations.get(id) ?? [],
       financialFacts: financialFacts.get(id) ?? [],
     };
@@ -473,6 +521,9 @@ export async function projectWork(
   const manifestationEvents = (await Promise.all(
     manifestationIds.map((id) => source.byKey("events", id)),
   )).flat();
+  const remoteAssetRows = shards.tables.remote_assets
+    ? await rowsForEntities(source, "remote_assets", [workId, ...manifestationIds])
+    : [];
   const creditRows = [...workCreditRows, ...manifestationCredits];
   const agentIds = creditRows.map((row) => text(row, "agent_id"));
   const conceptIds = [
@@ -497,6 +548,7 @@ export async function projectWork(
     ["parent_guide_assertions", advisoryRows],
     ["measurements", measurementRows],
     ["external_ids", externalRows],
+    ["remote_assets", remoteAssetRows],
     ["manifestations", manifestationRows],
     ["events", [...workEventRows, ...manifestationEvents]],
     ["work_memberships", []],
@@ -512,14 +564,18 @@ export async function projectWork(
 /** Resolve one first-class agent with only its names and external identifiers. */
 export async function projectAgent(
   source: ProductRowSource,
+  shards: ShardManifest,
   agentId: string,
 ): Promise<Agent | null> {
   const rows = await source.byKey("agents", agentId);
   if (rows.length === 0) return null;
   if (rows.length !== 1) throw new Error(`agent ${agentId} is not unique`);
-  const [names, externalRows] = await Promise.all([
+  const [names, externalRows, remoteAssetRows] = await Promise.all([
     source.byKey("names", agentId),
     source.byKey("external_ids", agentId),
+    shards.tables.remote_assets
+      ? source.byKey("remote_assets", agentId)
+      : Promise.resolve([]),
   ]);
   const labels = preferredNames(names);
   return {
@@ -531,5 +587,8 @@ export async function projectAgent(
       value: text(row, "value"),
       url: nullableText(row, "canonical_url"),
     })),
+    remoteAssets: remoteAssetRows
+      .sort((left, right) => Number(left.id ?? 0) - Number(right.id ?? 0))
+      .map(remoteAsset),
   };
 }

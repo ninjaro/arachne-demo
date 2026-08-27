@@ -28,6 +28,51 @@ function probeWith(
 }
 
 describe("ImageRuntime", () => {
+  it("loads canonical displayable assets before identifier-derived providers", async () => {
+    const probes: string[] = [];
+    const runtime = new ImageRuntime({
+      probe: probeWith(() => ({ ok: true }), probes),
+    });
+    const target: ImageEntity = {
+      ...entity("work-000001", [
+        { scheme: "openlibrary_work", value: "OL1W" },
+      ]),
+      remoteAssets: [{
+        id: "remote-asset:1",
+        provider: "wikimedia_commons",
+        remoteKey: "File:Canonical.jpg",
+        mediaKind: "poster",
+        directUrl: "https://upload.wikimedia.org/canonical.jpg",
+        sourcePageUrl: "https://commons.wikimedia.org/wiki/File:Canonical.jpg",
+        originProvider: "wikidata",
+        originEntityId: "Q1",
+        originProperty: "P3383",
+        mimeType: "image/jpeg",
+        widthPixels: 800,
+        heightPixels: 1200,
+        licenseId: "CC-BY-4.0",
+        licenseName: "CC BY 4.0",
+        licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
+        attributionText: "Example creator / CC BY 4.0",
+        authorText: "Example creator",
+        creditText: null,
+        rightsStatus: "licensed",
+        displayAllowed: true,
+        rightsNote: null,
+      }],
+    };
+
+    const loaded = await runtime.loadEntityImages({ entity: target, target: 1 });
+
+    expect(loaded).toHaveLength(1);
+    expect(loaded[0]).toMatchObject({
+      src: "https://upload.wikimedia.org/canonical.jpg",
+      sourceUrl: "https://commons.wikimedia.org/wiki/File:Canonical.jpg",
+      providerId: "canonical:wikimedia_commons",
+    });
+    expect(probes).toEqual(["https://upload.wikimedia.org/canonical.jpg"]);
+  });
+
   it("uses a sequential local/direct/lazy waterfall and stops at two loaded images", async () => {
     const probes: string[] = [];
     const fetchImpl = vi.fn<typeof fetch>();
