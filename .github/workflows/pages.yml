@@ -62,7 +62,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev libsqlite3-dev libutf8proc-dev nlohmann-json3-dev
           cd .arachne-core
-          ARACHNE_BUILD_TESTS=OFF ARACHNE_BUILD_LEGACY_CLIENT=OFF scripts/build.sh
+          ARACHNE_BUILD_TESTS=OFF scripts/build.sh
       - name: Derive exact-state research and taste artifacts transiently
         run: |
           database="$(python3 -c 'import json,pathlib; m=json.load(open("data/state-manifest.json")); print((pathlib.Path("data") / m["product"]["path"]).resolve())')"
@@ -84,6 +84,7 @@ jobs:
       - name: Build and verify immutable site
         env:
           ARACHNE_DEMO_BASE: /${{ github.event.repository.name }}/
+          VITE_ARACHNE_EXCLUDE_UNDER_MINED_WORKS: "true"
         run: |
           npm run build
           npm run test:static

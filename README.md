@@ -61,7 +61,11 @@ queries use shard keys or parameterized SQL rather than hydrating unrelated
 records. Plain-text Browse searches also use the adapter's bounded name query
 to preserve alias matches without a database-wide name-table hydration on the
 SQLite path. Graph-heavy views may materialize the complete current presentation
-projection, but there is no committed monolithic JSON catalog mirror.
+projection, but there is no committed monolithic JSON catalog mirror. The
+public Pages build excludes works with fewer than 16 human concept assertions,
+leaving that mining backlog in canonical state instead of presenting it as
+finished content. Local builds show the complete product unless
+`VITE_ARACHNE_EXCLUDE_UNDER_MINED_WORKS=true` is set explicitly.
 
 The single Python build script performs presentation publication and generic
 sharding only. It never derives research scores, taste weights, graph identity,

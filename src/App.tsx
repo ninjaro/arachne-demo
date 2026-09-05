@@ -4,6 +4,10 @@ import type { DemoDataAdapter } from "./data";
 import { buildDomain } from "./lib/data";
 import { featureIndexFromTasteIndex } from "./lib/features";
 import { buildResearchData } from "./lib/research";
+import {
+  excludeUnderMinedWorks,
+  projectResearchToCatalog,
+} from "./lib/presentation";
 import { DEFAULT_SETTINGS } from "./lib/settings";
 import type { BrowseFilters, BrowseSort } from "./lib/browse";
 import {
@@ -54,6 +58,13 @@ const LOCATION_DEFAULTS = {
   pageSize: DEFAULT_SETTINGS.browse.defaultPageSize,
   pageSizeOptions: DEFAULT_SETTINGS.browse.pageSizeOptions,
 };
+
+const EXCLUDE_UNDER_MINED_WORKS =
+  import.meta.env.VITE_ARACHNE_EXCLUDE_UNDER_MINED_WORKS === "true";
+
+function presentationCatalog(catalog: Catalog): Catalog {
+  return EXCLUDE_UNDER_MINED_WORKS ? excludeUnderMinedWorks(catalog) : catalog;
+}
 
 function DerivedViewState({
   title,
@@ -191,7 +202,7 @@ export default function App() {
     if (!data) return;
     try {
       fullCatalogRef.current ??= data.catalog();
-      installCatalog(await fullCatalogRef.current);
+      installCatalog(presentationCatalog(await fullCatalogRef.current));
     } catch (cause) {
       fullCatalogRef.current = null;
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -213,13 +224,17 @@ export default function App() {
         dataRef.current = data;
         setDataReady(true);
         if (graphHeavy) fullCatalogRef.current = Promise.resolve(loadedCatalog);
-        installCatalog(loadedCatalog);
+        const visibleCatalog = presentationCatalog(loadedCatalog);
+        installCatalog(visibleCatalog);
         setImageHintsUrl(data.asset("imageHints") ?? "");
 
         void data.research()
           .then((loadedResearch) => {
             if (active) {
-              setExternalResearch(buildResearchData(loadedCatalog, loadedResearch));
+              const visibleResearch = EXCLUDE_UNDER_MINED_WORKS
+                ? projectResearchToCatalog(loadedResearch, visibleCatalog)
+                : loadedResearch;
+              setExternalResearch(buildResearchData(visibleCatalog, visibleResearch));
             }
           })
           .catch((cause: unknown) => {
